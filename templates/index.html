@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — AI Tennis Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-logo">Tennis<span>AC</span></div>
+    <div class="nav-right">
+      <span class="nav-user">👋 {{ user.name }}</span>
+      <a href="/profile/edit" class="nav-link">Edit Profile</a>
+      <a href="/logout" class="nav-link">Log Out</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-bg">
+      <div class="court-line line-1"></div>
+      <div class="court-line line-2"></div>
+      <div class="court-line line-3"></div>
+      <div class="court-line line-4"></div>
+    </div>
+    <div class="hero-content">
+      <h1 class="hero-title">Upload.<br>Analyze.<br>Improve.</h1>
+      <p class="hero-desc">
+        Drop in a clip of your shot and TennisAC will break down your mechanics,
+        score your form, and give you personalized coaching tips.
+      </p>
+      {% if user.play_like %}
+      <div class="hero-badge">🎾 Playing style: {{ user.play_like }} · UTR {{ user.utr or 'N/A' }}</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="upload-section">
+    <div class="card">
+      <h2 class="card-title">Analyze Your Shot</h2>
+
+      <form action="/analyze" method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="field-group">
+          <label class="field-label">Select Shot Type</label>
+          <div class="shot-grid">
+            <label class="shot-option">
+              <input type="radio" name="shot_type" value="serve" checked />
+              <span class="shot-btn"><span class="shot-icon">🎾</span><span class="shot-name">Serve</span></span>
+            </label>
+            <label class="shot-option">
+              <input type="radio" name="shot_type" value="forehand" />
+              <span class="shot-btn"><span class="shot-icon">↗️</span><span class="shot-name">Forehand</span></span>
+            </label>
+            <label class="shot-option">
+              <input type="radio" name="shot_type" value="backhand" />
+              <span class="shot-btn"><span class="shot-icon">↖️</span><span class="shot-name">Backhand</span></span>
+            </label>
+            <label class="shot-option">
+              <input type="radio" name="shot_type" value="rally" />
+              <span class="shot-btn"><span class="shot-icon">⚡</span><span class="shot-name">Rally</span></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Upload Your Video</label>
+          <div class="dropzone" id="dropzone">
+            <div class="dz-inner" id="dzInner">
+              <div class="dz-icon">📹</div>
+              <p class="dz-text">Drag & drop your video here</p>
+              <p class="dz-sub">or click to browse · MP4, MOV, AVI · max 30 seconds</p>
+            </div>
+            <input type="file" name="video" id="videoInput" accept=".mp4,.mov,.avi,.mkv" required />
+          </div>
+          <p class="tip">💡 Tip: Film from the side or slightly behind for best results.</p>
+        </div>
+
+        <button type="submit" class="btn-analyze" id="submitBtn">
+          <span id="btnText">Analyze My Shot</span>
+          <span id="btnLoader" class="hidden">Analyzing your shot...</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="how-it-works">
+      <h3 class="hiw-title">How It Works</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">01</div><p class="step-text">Upload a short video of your shot</p></div>
+        <div class="step-arrow">→</div>
+        <div class="step"><div class="step-num">02</div><p class="step-text">AI analyzes your movement frame by frame</p></div>
+        <div class="step-arrow">→</div>
+        <div class="step"><div class="step-num">03</div><p class="step-text">Get personalized feedback based on your profile</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>TennisAC &copy; 2025 &mdash; Built for junior athletes who grind.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

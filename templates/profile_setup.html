@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Player Profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-logo">Tennis<span>AC</span></div>
+    {% if edit %}
+    <a href="/" class="nav-back">← Back</a>
+    {% endif %}
+  </nav>
+
+  <section class="upload-section">
+    <div class="card">
+      <h2 class="card-title">{% if edit %}Edit Your Profile{% else %}Set Up Your Player Profile{% endif %}</h2>
+      <p style="color: var(--muted); margin-bottom: 28px; font-size: 0.9rem;">
+        Your coach uses this to personalize every analysis to your game.
+      </p>
+
+      <form action="{% if edit %}/profile/edit{% else %}/profile/setup{% endif %}" method="POST">
+
+        <div class="field-group">
+          <label class="field-label">Who do you want to play like?</label>
+          <input type="text" name="play_like" class="input" placeholder="e.g. Alcaraz, Djokovic, Sinner..." value="{{ user.play_like or '' }}" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Your UTR Rating</label>
+          <input type="text" name="utr" class="input" placeholder="e.g. 8.5" value="{{ user.utr or '' }}" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">What type of player are you?</label>
+          <div class="radio-group">
+            {% for opt in ['Baseliner', 'Serve & Volleyer', 'All-Court', 'Counter-Puncher', 'Aggressive Baseliner'] %}
+            <label class="radio-opt">
+              <input type="radio" name="player_type" value="{{ opt }}" {% if user.player_type == opt %}checked{% endif %} />
+              <span>{{ opt }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Tactical Preference</label>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="tactical_pref" value="Resistance — I like long rallies" {% if user.tactical_pref == 'Resistance — I like long rallies' %}checked{% endif %} />
+              <span>Resistance — I like long rallies</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="tactical_pref" value="Quick finish — I go for winners early" {% if user.tactical_pref == 'Quick finish — I go for winners early' %}checked{% endif %} />
+              <span>Quick finish — I go for winners early</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">What racquet do you use?</label>
+          <input type="text" name="racquet" class="input" placeholder="e.g. Wilson Pro Staff 97, Babolat Pure Drive..." value="{{ user.racquet or '' }}" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Dominant Hand</label>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="dominant_hand" value="Right" {% if user.dominant_hand == 'Right' %}checked{% endif %} />
+              <span>Right</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="dominant_hand" value="Left" {% if user.dominant_hand == 'Left' %}checked{% endif %} />
+              <span>Left</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Backhand Style</label>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="backhand_style" value="Two-handed" {% if user.backhand_style == 'Two-handed' %}checked{% endif %} />
+              <span>Two-handed</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="backhand_style" value="One-handed" {% if user.backhand_style == 'One-handed' %}checked{% endif %} />
+              <span>One-handed</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Your Best Shot</label>
+          <div class="radio-group">
+            {% for shot in ['Forehand', 'Backhand', 'Serve', 'Volley', 'Slice'] %}
+            <label class="radio-opt">
+              <input type="radio" name="best_shot" value="{{ shot }}" {% if user.best_shot == shot %}checked{% endif %} />
+              <span>{{ shot }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Do you prefer longer or shorter points?</label>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="point_length" value="Longer points" {% if user.point_length == 'Longer points' %}checked{% endif %} />
+              <span>Longer points</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="point_length" value="Shorter points" {% if user.point_length == 'Shorter points' %}checked{% endif %} />
+              <span>Shorter points</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Rank All Your Shots (Best to Worst)</label>
+          <div class="shot-rank-grid">
+            {% set shots = ['Forehand', 'Backhand', 'Serve', 'Slice', 'Volley', 'Drop Shot'] %}
+            {% set labels = ['1st', '2nd', '3rd', '4th', '5th', '6th'] %}
+            {% set names = ['shot1', 'shot2', 'shot3', 'shot4', 'shot5', 'shot6'] %}
+            {% for i in range(6) %}
+            <div class="rank-row">
+              <span class="rank-num">{{ labels[i] }}</span>
+              <select name="{{ names[i] }}" class="input select-input">
+                {% for s in shots %}
+                <option value="{{ s }}" {% if saved_shots[i] == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <button type="submit" class="btn-analyze">
+          {% if edit %}Save Changes{% else %}Save Profile & Start Analyzing{% endif %}
+        </button>
+
+      </form>
+    </div>
+  </section>
+</body>
+</html>

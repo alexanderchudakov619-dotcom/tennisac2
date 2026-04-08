@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Results</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-logo">Tennis<span>AC</span></div>
+    <a href="/" class="nav-back">← Analyze another shot</a>
+  </nav>
+
+  <!-- Results Header -->
+  <section class="results-hero">
+    <div class="results-header">
+      <p class="results-sub">{{ shot_type | capitalize }} Analysis</p>
+      <h1 class="results-title">Your Breakdown</h1>
+
+      <!-- Overall Score Ring -->
+      <div class="score-ring-wrap">
+        <svg class="score-ring" viewBox="0 0 120 120">
+          <circle class="ring-bg" cx="60" cy="60" r="52" />
+          <circle
+            class="ring-fill"
+            cx="60" cy="60" r="52"
+            stroke-dasharray="{{ ((feedback.overall_score or 0) / 100 * 326.7) | round(1) }} 326.7"
+            stroke-dashoffset="81.7"
+          />
+        </svg>
+        <div class="score-text">
+          <span class="score-num">{{ feedback.overall_score or '—' }}</span>
+          <span class="score-denom">/100</span>
+          <span class="score-lbl">{{ feedback.overall_label }}</span>
+        </div>
+      </div>
+
+      <p class="frames-note">{{ metrics.frames_analyzed }} frames analyzed · {{ metrics.duration_sec }}s clip</p>
+    </div>
+  </section>
+
+  <!-- Metric Cards -->
+  <section class="metrics-section">
+    <h2 class="section-title">Metric Breakdown</h2>
+    <div class="metrics-grid">
+      {% for name, data in feedback.scores.items() %}
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-name">{{ name }}</span>
+          <span class="metric-label label-{{ data.label | lower | replace(' ', '-') }}">{{ data.label }}</span>
+        </div>
+        <div class="metric-bar-bg">
+          <div
+            class="metric-bar-fill"
+            style="width: {{ data.score or 0 }}%; background: {{ '#00e676' if (data.score or 0) >= 80 else ('#ffd600' if (data.score or 0) >= 60 else '#ff5252') }}"
+          ></div>
+        </div>
+        <span class="metric-score">{{ data.score or 'N/A' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Coaching Tips -->
+  <section class="tips-section">
+    <h2 class="section-title">Coach's Notes</h2>
+    <div class="tips-list">
+      {% for tip in feedback.tips %}
+      <div class="tip-card">
+        <div class="tip-icon">🎾</div>
+        <p class="tip-text">{{ tip }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <a href="/" class="btn-analyze">Analyze Another Shot</a>
+  </section>
+
+  <footer class="footer">
+    <p>TennisAC &copy; 2025 &mdash; Built for junior athletes who grind.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script>
+    // Animate metric bars on load
+    window.addEventListener('load', () => {
+      document.querySelectorAll('.metric-bar-fill').forEach((bar, i) => {
+        bar.style.width = '0%';
+        setTimeout(() => {
+          bar.style.transition = 'width 0.8s ease';
+          bar.style.width = bar.getAttribute('style').match(/width: (\d+\.?\d*)%/)?.[1] + '%' || '0%';
+        }, i * 120);
+      });
+    });
+  </script>
+</body>
+</html>

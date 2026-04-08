@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-logo">Tennis<span>AC</span></div>
+  </nav>
+
+  <section class="auth-section">
+    <div class="auth-card">
+      <h1 class="auth-title">Welcome Back</h1>
+      <p class="auth-sub">Sign in to your coaching dashboard</p>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash-msg">{{ messages[0] }}</div>
+        {% endif %}
+      {% endwith %}
+
+      <form action="/login" method="POST">
+        <div class="field-group">
+          <label class="field-label">Email</label>
+          <input type="email" name="email" class="input" placeholder="your@email.com" required />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Password</label>
+          <input type="password" name="password" class="input" placeholder="••••••••" required />
+        </div>
+        <button type="submit" class="btn-analyze">Sign In</button>
+      </form>
+
+      <p class="auth-switch">Don't have an account? <a href="/signup">Sign up</a></p>
+    </div>
+  </section>
+</body>
+</html>
