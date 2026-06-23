@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Point Play Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-right">
+      <span class="nav-user">👋 {{ user.name }}</span>
+      <a href="/" class="nav-link">← Back</a>
+      <a href="/logout" class="nav-link">Log Out</a>
+    </div>
+  </nav>
+
+  <section class="upload-section">
+    <div class="card">
+      <h2 class="card-title">Point Play Analysis</h2>
+      <p style="color: var(--muted); margin-bottom: 28px; font-size: 0.95rem; line-height: 1.7;">
+        Upload a video of a full point. TennisAC will analyze the strategy, shot selection,
+        and decision-making — not just technique.
+      </p>
+
+      <form action="/point-play" method="POST" enctype="multipart/form-data" id="uploadForm">
+
+        <!-- Won or Lost -->
+        <div class="field-group">
+          <label class="field-label">Did you win or lose this point?</label>
+          <div class="shot-grid" style="grid-template-columns: 1fr 1fr;">
+            <label class="shot-option">
+              <input type="radio" name="point_result" value="won" required />
+              <span class="shot-btn">
+                <span class="shot-icon">✅</span>
+                <span class="shot-name">Point Won</span>
+              </span>
+            </label>
+            <label class="shot-option">
+              <input type="radio" name="point_result" value="lost" />
+              <span class="shot-btn">
+                <span class="shot-icon">❌</span>
+                <span class="shot-name">Point Lost</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Optional context -->
+        <div class="field-group">
+          <label class="field-label">Optional: Describe what happened (helps the AI)</label>
+          <textarea name="point_context" class="input" rows="3"
+            placeholder="e.g. I was at the baseline, hit a crosscourt forehand, opponent came to net, I tried a passing shot..."
+            style="resize: vertical; line-height: 1.6;"></textarea>
+        </div>
+
+        <!-- Upload -->
+        <div class="field-group">
+          <label class="field-label">Upload Point Video</label>
+          <div class="dropzone" id="dropzone">
+            <div class="dz-inner" id="dzInner">
+              <div class="dz-icon">📹</div>
+              <p class="dz-text">Drag & drop your point video here</p>
+              <p class="dz-sub">or click to browse · MP4, MOV, AVI · max 60 seconds</p>
+            </div>
+            <input type="file" name="video" id="videoInput" accept=".mp4,.mov,.avi,.mkv" required />
+          </div>
+          <p class="tip">💡 Tip: Include the full point from first shot to last for best analysis.</p>
+        </div>
+
+        <button type="submit" class="btn-analyze" id="submitBtn">
+          <span id="btnText">Analyze This Point</span>
+          <span id="btnLoader" class="hidden">Analyzing point strategy...</span>
+        </button>
+
+      </form>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>TennisAC &copy; 2025 &mdash; Built for junior athletes who grind.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

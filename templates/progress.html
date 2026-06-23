@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TennisAC Progress</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Progress Tracker</div>
+    </div>
+    <div class="nav-right">
+        <span class="nav-user">{{ user['name'] }}</span>
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="results-header">
+        <div class="results-sub">Your Development</div>
+        <h1 class="results-title">My Progress</h1>
+        <p class="hero-desc">Track your saved shot analyses and watch your game improve over time.</p>
+    </div>
+</section>
+
+<section class="metrics-section">
+    {% if history %}
+        <div class="progress-grid">
+            {% for item in history %}
+                <div class="metric-card progress-card">
+                    <div class="metric-header">
+                        <span class="metric-name">{{ item['shot_type']|title }}</span>
+                        <span class="metric-label label-excellent">{{ item['overall_label'] }}</span>
+                    </div>
+
+                    <div class="progress-score">{{ item['overall_score'] }}</div>
+                    <div class="metric-score">{{ item['created_at'] }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <h2 class="card-title">No analyses yet</h2>
+            <p class="hero-desc">Analyze your first shot to start tracking progress.</p>
+        </div>
+    {% endif %}
+</section>
+
+</body>
+</html>

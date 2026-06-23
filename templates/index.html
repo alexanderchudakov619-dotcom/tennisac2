@@ -11,11 +11,14 @@
 <body>
 
   <nav class="nav">
-    <div class="nav-logo">Tennis<span>AC</span></div>
+  <a href="/" class="nav-logo">
+    Tennis<span>AC</span>
+</a>
     <div class="nav-right">
       <span class="nav-user">👋 {{ user.name }}</span>
-      <a href="/profile/edit" class="nav-link">Edit Profile</a>
-      <a href="/logout" class="nav-link">Log Out</a>
+      <a href="/progress" class="nav-link">My Progress</a>
+<a href="/profile/edit" class="nav-link">Edit Profile</a>
+<a href="/logout" class="nav-link">Log Out</a>
     </div>
   </nav>
 
@@ -83,6 +86,16 @@
           <span id="btnLoader" class="hidden">Analyzing your shot...</span>
         </button>
       </form>
+    </div>
+
+    <!-- Point Play Analysis Card -->
+    <div class="card point-play-card">
+      <div class="pp-left">
+        <p class="pp-label">NEW FEATURE</p>
+        <h3 class="pp-title">Point Play Analysis</h3>
+        <p class="pp-desc">Upload a full point and get AI-powered strategic feedback — shot selection, decision-making, and what you should have done differently.</p>
+      </div>
+      <a href="/point-play" class="btn-pp">Try It →</a>
     </div>
 
     <div class="how-it-works">

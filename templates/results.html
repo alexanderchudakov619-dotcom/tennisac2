@@ -13,7 +13,7 @@
 
   <!-- Nav -->
   <nav class="nav">
-    <div class="nav-logo">Tennis<span>AC</span></div>
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
     <a href="/" class="nav-back">← Analyze another shot</a>
   </nav>
 
@@ -50,7 +50,7 @@
     <h2 class="section-title">Metric Breakdown</h2>
     <div class="metrics-grid">
       {% for name, data in feedback.scores.items() %}
-      <div class="metric-card">
+      <div class="metric-card" onclick="this.classList.toggle('open')">
         <div class="metric-header">
           <span class="metric-name">{{ name }}</span>
           <span class="metric-label label-{{ data.label | lower | replace(' ', '-') }}">{{ data.label }}</span>
@@ -62,6 +62,11 @@
           ></div>
         </div>
         <span class="metric-score">{{ data.score or 'N/A' }}</span>
+        <div class="metric-details">
+  <p><strong>What this means:</strong> {{ data.definition or 'This metric shows one important part of your technique.' }}</p>
+  <p><strong>AI Focus:</strong> {{ data.ai_focus or 'TennisAC checks how this part of your movement affects the shot.' }}</p>
+  <p><strong>How to improve:</strong> {{ data.fix or 'Focus on cleaner movement, better balance, and repeating the right technique.' }}</p>
+</div>
       </div>
       {% endfor %}
     </div>

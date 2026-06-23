@@ -40,6 +40,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS analysis_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            shot_type TEXT NOT NULL,
+            overall_score REAL,
+            overall_label TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
     db.commit()
     db.close()
 
@@ -186,28 +199,64 @@ def analyze():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
+
     if 'video' not in request.files:
         return redirect(url_for('index'))
+
     file = request.files['video']
     shot_type = request.form.get('shot_type', 'serve')
+
     if file.filename == '' or not allowed_file(file.filename):
         return redirect(url_for('index'))
+
     ext = file.filename.rsplit('.', 1)[1].lower()
     unique_name = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
     file.save(filepath)
+
     metrics = process_video(filepath, shot_type)
+
     profile = {
-        'name': user['name'], 'play_like': user['play_like'],
-        'utr': user['utr'], 'player_type': user['player_type'],
-        'tactical_pref': user['tactical_pref'], 'dominant_hand': user['dominant_hand'],
-        'backhand_style': user['backhand_style'], 'best_shot': user['best_shot'],
-        'point_length': user['point_length'], 'shot_order': user['shot_order'],
+        'name': user['name'],
+        'play_like': user['play_like'],
+        'utr': user['utr'],
+        'player_type': user['player_type'],
+        'tactical_pref': user['tactical_pref'],
+        'dominant_hand': user['dominant_hand'],
+        'backhand_style': user['backhand_style'],
+        'best_shot': user['best_shot'],
+        'point_length': user['point_length'],
+        'shot_order': user['shot_order'],
     }
+
     feedback = generate_feedback(metrics, shot_type, profile=profile)
+
+    db = get_db()
+    db.execute(
+        '''
+        INSERT INTO analysis_history
+        (user_id, shot_type, overall_score, overall_label)
+        VALUES (?, ?, ?, ?)
+        ''',
+        (
+            user['id'],
+            shot_type,
+            feedback.get('overall_score'),
+            feedback.get('overall_label')
+        )
+    )
+    db.commit()
+    db.close()
+
     os.remove(filepath)
-    return render_template('results.html', metrics=metrics, feedback=feedback,
-                           shot_type=shot_type, user=user)
+
+    return render_template(
+        'results.html',
+        metrics=metrics,
+        feedback=feedback,
+        shot_type=shot_type,
+        user=user
+    )
 
 @app.route('/point-play', methods=['GET', 'POST'])
 def point_play():
@@ -244,6 +293,27 @@ def point_play():
                                point_result=point_result,
                                user=user)
     return render_template('point_play.html', user=user)
+
+
+@app.route('/progress')
+def progress():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    db = get_db()
+    history = db.execute(
+        '''
+        SELECT *
+        FROM analysis_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        ''',
+        (user['id'],)
+    ).fetchall()
+    db.close()
+
+    return render_template('progress.html', user=user, history=history)
 
 if __name__ == '__main__':
     os.makedirs('uploads', exist_ok=True)
