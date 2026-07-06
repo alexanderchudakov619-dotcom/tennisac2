@@ -56,6 +56,9 @@ def init_db():
     db.commit()
     db.close()
 
+os.makedirs('uploads', exist_ok=True)
+init_db()
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -316,6 +319,4 @@ def progress():
     return render_template('progress.html', user=user, history=history)
 
 if __name__ == '__main__':
-    os.makedirs('uploads', exist_ok=True)
-    init_db()
     app.run(debug=True)
