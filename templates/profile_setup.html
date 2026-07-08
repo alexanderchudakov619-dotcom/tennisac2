@@ -5,38 +5,87 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TennisAC — Player Profile</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --clay:#CD5A31;--clay-deep:#A8431F;--court:#B9E04C;--baseline:#2E7CA6;
+      --ink:#0B0E10;--surface:#14181C;--surface-2:#1B2126;--line:#272E34;
+      --gray:#8A9298;--gray-2:#5C666D;--white:#F3F6F4;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--ink);color:var(--white);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,5vw,56px);border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,14,16,.82);backdrop-filter:blur(12px);z-index:50}
+    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
+    .nav-logo span{color:var(--clay)}
+    .nav-back{color:var(--gray);text-decoration:none;font-size:13px;font-weight:600}
+    .nav-back:hover{color:var(--white)}
+
+    .wrap{max-width:680px;margin:0 auto;padding:44px clamp(20px,5vw,32px) 80px}
+    .eyebrow{color:var(--clay);font-size:11px;font-weight:600;margin-bottom:14px}
+    .page-title{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(30px,5vw,42px);letter-spacing:-.02em;text-transform:uppercase;line-height:1}
+    .page-sub{color:var(--gray);font-size:15px;margin-top:12px;margin-bottom:34px}
+
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:clamp(22px,4vw,34px)}
+
+    .field-group + .field-group{margin-top:26px}
+    .field-label{display:block;font-size:11px;color:var(--gray);margin-bottom:12px}
+
+    .input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:13px 14px;color:var(--white);font-family:'Inter',sans-serif;font-size:15px;transition:border-color .15s}
+    .input::placeholder{color:var(--gray-2)}
+    .input:focus{outline:none;border-color:var(--clay);box-shadow:0 0 0 1px var(--clay) inset}
+    select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--gray) 50%),linear-gradient(135deg,var(--gray) 50%,transparent 50%);background-position:calc(100% - 18px) 19px,calc(100% - 13px) 19px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:36px}
+
+    .radio-group{display:flex;flex-wrap:wrap;gap:10px}
+    .radio-opt{position:relative;cursor:pointer}
+    .radio-opt input{position:absolute;opacity:0;pointer-events:none}
+    .radio-opt span{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:10px 16px;font-size:13.5px;font-weight:500;color:var(--white);transition:all .15s}
+    .radio-opt:hover span{border-color:var(--gray-2)}
+    .radio-opt input:checked + span{background:rgba(205,90,49,.14);border-color:var(--clay);box-shadow:0 0 0 1px var(--clay) inset;color:#fff}
+    .radio-opt input:focus-visible + span{outline:2px solid var(--court);outline-offset:2px}
+
+    .shot-rank-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .rank-row{display:flex;align-items:center;gap:10px}
+    .rank-num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);min-width:26px}
+    .select-input{flex:1}
+
+    .btn-analyze{width:100%;margin-top:32px;border:0;cursor:pointer;background:var(--clay);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;padding:16px;border-radius:12px;transition:all .16s}
+    .btn-analyze:hover{background:var(--clay-deep);transform:translateY(-1px)}
+
+    @media(max-width:560px){.shot-rank-grid{grid-template-columns:1fr}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
 </head>
 <body>
   <nav class="nav">
-    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-logo">Tennis<span>AC</span></div>
     {% if edit %}
     <a href="/" class="nav-back">← Back</a>
     {% endif %}
   </nav>
 
-  <section class="upload-section">
-    <div class="card">
-      <h2 class="card-title">{% if edit %}Edit Your Profile{% else %}Set Up Your Player Profile{% endif %}</h2>
-      <p style="color: var(--muted); margin-bottom: 28px; font-size: 0.9rem;">
-        Your coach uses this to personalize every analysis to your game.
-      </p>
+  <div class="wrap">
+    <p class="eyebrow mono">Player Profile</p>
+    <h1 class="page-title">{% if edit %}Edit your profile{% else %}Set up your profile{% endif %}</h1>
+    <p class="page-sub">Your coach uses this to personalize every analysis to your game.</p>
 
+    <div class="card">
       <form action="{% if edit %}/profile/edit{% else %}/profile/setup{% endif %}" method="POST">
 
         <div class="field-group">
-          <label class="field-label">Who do you want to play like?</label>
+          <label class="field-label mono">Who do you want to play like?</label>
           <input type="text" name="play_like" class="input" placeholder="e.g. Alcaraz, Djokovic, Sinner..." value="{{ user.play_like or '' }}" />
         </div>
 
         <div class="field-group">
-          <label class="field-label">Your UTR Rating</label>
+          <label class="field-label mono">Your UTR rating</label>
           <input type="text" name="utr" class="input" placeholder="e.g. 8.5" value="{{ user.utr or '' }}" />
         </div>
 
         <div class="field-group">
-          <label class="field-label">What type of player are you?</label>
+          <label class="field-label mono">What type of player are you?</label>
           <div class="radio-group">
             {% for opt in ['Baseliner', 'Serve & Volleyer', 'All-Court', 'Counter-Puncher', 'Aggressive Baseliner'] %}
             <label class="radio-opt">
@@ -48,7 +97,7 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">Tactical Preference</label>
+          <label class="field-label mono">Tactical preference</label>
           <div class="radio-group">
             <label class="radio-opt">
               <input type="radio" name="tactical_pref" value="Resistance — I like long rallies" {% if user.tactical_pref == 'Resistance — I like long rallies' %}checked{% endif %} />
@@ -62,12 +111,12 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">What racquet do you use?</label>
+          <label class="field-label mono">What racquet do you use?</label>
           <input type="text" name="racquet" class="input" placeholder="e.g. Wilson Pro Staff 97, Babolat Pure Drive..." value="{{ user.racquet or '' }}" />
         </div>
 
         <div class="field-group">
-          <label class="field-label">Dominant Hand</label>
+          <label class="field-label mono">Dominant hand</label>
           <div class="radio-group">
             <label class="radio-opt">
               <input type="radio" name="dominant_hand" value="Right" {% if user.dominant_hand == 'Right' %}checked{% endif %} />
@@ -81,7 +130,7 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">Backhand Style</label>
+          <label class="field-label mono">Backhand style</label>
           <div class="radio-group">
             <label class="radio-opt">
               <input type="radio" name="backhand_style" value="Two-handed" {% if user.backhand_style == 'Two-handed' %}checked{% endif %} />
@@ -95,7 +144,7 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">Your Best Shot</label>
+          <label class="field-label mono">Your best shot</label>
           <div class="radio-group">
             {% for shot in ['Forehand', 'Backhand', 'Serve', 'Volley', 'Slice'] %}
             <label class="radio-opt">
@@ -107,7 +156,7 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">Do you prefer longer or shorter points?</label>
+          <label class="field-label mono">Do you prefer longer or shorter points?</label>
           <div class="radio-group">
             <label class="radio-opt">
               <input type="radio" name="point_length" value="Longer points" {% if user.point_length == 'Longer points' %}checked{% endif %} />
@@ -121,7 +170,7 @@
         </div>
 
         <div class="field-group">
-          <label class="field-label">Rank All Your Shots (Best to Worst)</label>
+          <label class="field-label mono">Rank all your shots (best to worst)</label>
           <div class="shot-rank-grid">
             {% set shots = ['Forehand', 'Backhand', 'Serve', 'Slice', 'Volley', 'Drop Shot'] %}
             {% set labels = ['1st', '2nd', '3rd', '4th', '5th', '6th'] %}
@@ -140,11 +189,11 @@
         </div>
 
         <button type="submit" class="btn-analyze">
-          {% if edit %}Save Changes{% else %}Save Profile & Start Analyzing{% endif %}
+          {% if edit %}Save changes{% else %}Save profile &amp; start analyzing{% endif %}
         </button>
 
       </form>
     </div>
-  </section>
+  </div>
 </body>
 </html>

@@ -3,20 +3,59 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TennisAC — Login</title>
+  <title>TennisAC — Log In</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --clay:#CD5A31;--clay-deep:#A8431F;--court:#B9E04C;--baseline:#2E7CA6;
+      --ink:#0B0E10;--surface:#14181C;--surface-2:#1B2126;--line:#272E34;
+      --gray:#8A9298;--gray-2:#5C666D;--white:#F3F6F4;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--ink);color:var(--white);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+
+    .nav{display:flex;align-items:center;padding:20px clamp(20px,5vw,56px);border-bottom:1px solid var(--line)}
+    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
+    .nav-logo span{color:var(--clay)}
+
+    .auth-wrap{min-height:calc(100vh - 66px);display:flex;align-items:center;justify-content:center;padding:40px 20px;position:relative;overflow:hidden}
+    .auth-wrap::before,.auth-wrap::after{content:"";position:absolute;left:-10%;right:-10%;height:1px;background:linear-gradient(90deg,transparent,var(--clay),transparent);opacity:.25}
+    .auth-wrap::before{top:34%;transform:rotate(-1.5deg)}
+    .auth-wrap::after{top:70%;transform:rotate(-1.5deg)}
+
+    .auth-card{position:relative;z-index:1;width:100%;max-width:420px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:clamp(28px,5vw,40px)}
+    .eyebrow{color:var(--clay);font-size:11px;font-weight:600;margin-bottom:14px}
+    .auth-title{font-family:'Archivo',sans-serif;font-weight:900;font-size:34px;letter-spacing:-.02em;text-transform:uppercase;line-height:1}
+    .auth-sub{color:var(--gray);font-size:14.5px;margin-top:10px;margin-bottom:26px}
+
+    .flash-msg{background:rgba(205,90,49,.12);border:1px solid rgba(205,90,49,.5);color:#f0b8a3;font-size:13.5px;padding:12px 14px;border-radius:10px;margin-bottom:20px}
+
+    .field-group + .field-group{margin-top:16px}
+    .field-label{display:block;font-size:11px;color:var(--gray);margin-bottom:8px}
+    .input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:13px 14px;color:var(--white);font-family:'Inter',sans-serif;font-size:15px;transition:border-color .15s}
+    .input::placeholder{color:var(--gray-2)}
+    .input:focus{outline:none;border-color:var(--clay);box-shadow:0 0 0 1px var(--clay) inset}
+
+    .btn-analyze{width:100%;margin-top:24px;border:0;cursor:pointer;background:var(--clay);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;padding:15px;border-radius:11px;transition:all .16s}
+    .btn-analyze:hover{background:var(--clay-deep);transform:translateY(-1px)}
+
+    .auth-switch{color:var(--gray);font-size:13.5px;text-align:center;margin-top:22px}
+    .auth-switch a{color:var(--court);text-decoration:none;font-weight:600}
+    .auth-switch a:hover{text-decoration:underline}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="nav-logo">Tennis<span>AC</span></div>
-  </nav>
+  <nav class="nav"><div class="nav-logo">Tennis<span>AC</span></div></nav>
 
-  <section class="auth-section">
+  <section class="auth-wrap">
     <div class="auth-card">
-      <h1 class="auth-title">Welcome Back</h1>
-      <p class="auth-sub">Sign in to your coaching dashboard</p>
+      <p class="eyebrow mono">Coaching Dashboard</p>
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-sub">Sign in to pick up your training where you left off.</p>
 
       {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -26,17 +65,17 @@
 
       <form action="/login" method="POST">
         <div class="field-group">
-          <label class="field-label">Email</label>
+          <label class="field-label mono">Email</label>
           <input type="email" name="email" class="input" placeholder="your@email.com" required />
         </div>
         <div class="field-group">
-          <label class="field-label">Password</label>
+          <label class="field-label mono">Password</label>
           <input type="password" name="password" class="input" placeholder="••••••••" required />
         </div>
-        <button type="submit" class="btn-analyze">Sign In</button>
+        <button type="submit" class="btn-analyze">Sign in</button>
       </form>
 
-      <p class="auth-switch">Don't have an account? <a href="/signup">Sign up</a></p>
+      <p class="auth-switch">New here? <a href="/signup">Create an account</a></p>
     </div>
   </section>
 </body>
