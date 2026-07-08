@@ -5,98 +5,144 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TennisAC — Point Analysis Results</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --clay:#CD5A31;--clay-deep:#A8431F;--court:#B9E04C;--baseline:#2E7CA6;
+      --ink:#0B0E10;--surface:#14181C;--surface-2:#1B2126;--line:#272E34;
+      --gray:#8A9298;--gray-2:#5C666D;--white:#F3F6F4;--good:#B9E04C;--ok:#F2C14E;--bad:#E5604A;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--ink);color:var(--white);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,5vw,56px);border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,14,16,.82);backdrop-filter:blur(12px);z-index:50}
+    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
+    .nav-logo span{color:var(--clay)}
+    .nav-right{display:flex;align-items:center;gap:20px}
+    .nav-link{color:var(--gray);text-decoration:none;font-size:13px;font-weight:600}
+    .nav-link:hover{color:var(--white)}
+
+    .wrap{max-width:760px;margin:0 auto;padding:0 clamp(20px,5vw,32px)}
+
+    .results-hero{text-align:center;padding:52px 0 20px}
+    .results-sub{color:var(--baseline);font-size:12px;font-weight:600;margin-bottom:14px}
+    .results-title{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(36px,7vw,60px);letter-spacing:-.03em;text-transform:uppercase;line-height:.95}
+    .result-won{color:var(--good)}
+    .result-lost{color:var(--bad)}
+
+    .section-title{font-family:'Archivo',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em;margin:36px 0 18px}
+    .metrics-section{padding:16px 0 8px}
+
+    .too-good-banner{display:flex;gap:16px;align-items:flex-start;background:rgba(242,193,78,.10);border:1px solid rgba(242,193,78,.4);border-radius:14px;padding:20px 22px;margin-bottom:8px}
+    .too-good-icon{font-size:26px}
+    .too-good-title{font-family:'Archivo',sans-serif;font-weight:800;font-size:16px;color:var(--ok);margin-bottom:6px}
+    .too-good-text{color:var(--gray);font-size:14px;line-height:1.6}
+
+    .tips-list{display:flex;flex-direction:column;gap:12px}
+    .tip-card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--baseline);border-radius:12px;padding:18px 20px;cursor:pointer}
+    .tip-card .tip-icon{font-size:18px;float:left;margin-right:12px}
+    .tip-text{font-size:14.5px;line-height:1.6;color:var(--white);overflow:hidden}
+    .tip-details{clear:both;max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--gray);font-size:13.5px;line-height:1.6}
+    .tip-details p{margin-top:12px}
+    .tip-details strong{color:var(--white);font-weight:600}
+    .tip-card.open .tip-details{max-height:300px}
+
+    .cta-section{text-align:center;padding:28px 0 48px}
+    .btn-analyze{display:inline-block;text-decoration:none;border:0;cursor:pointer;background:var(--baseline);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;padding:15px 34px;border-radius:12px;transition:all .16s}
+    .btn-analyze:hover{filter:brightness(1.1);transform:translateY(-1px)}
+
+    footer{border-top:1px solid var(--line);padding:26px 0 40px}
+    footer p{color:var(--gray-2);font-size:12.5px;text-align:center}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
 </head>
 <body>
 
   <nav class="nav">
-    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-logo">Tennis<span>AC</span></div>
     <div class="nav-right">
-      <a href="/point-play" class="nav-link">← Analyze Another Point</a>
+      <a href="/point-play" class="nav-link">← Analyze another point</a>
       <a href="/" class="nav-link">Home</a>
     </div>
   </nav>
 
-  <!-- Header -->
   <section class="results-hero">
-    <div class="results-header">
-      <p class="results-sub">Point Play Analysis</p>
-      <h1 class="results-title">
-        {% if point_result == 'won' %}Point Won 🟢{% else %}Point Lost 🔴{% endif %}
+    <div class="wrap">
+      <p class="results-sub mono">Point Play Analysis</p>
+      <h1 class="results-title {% if point_result == 'won' %}result-won{% else %}result-lost{% endif %}">
+        {% if point_result == 'won' %}Point Won{% else %}Point Lost{% endif %}
       </h1>
     </div>
   </section>
 
-  <!-- AI Analysis -->
   <section class="metrics-section">
+    <div class="wrap">
 
-    {% if analysis.too_good %}
-    <div class="too-good-banner">
-      <div class="too-good-icon">🏆</div>
-      <div>
-        <p class="too-good-title">Opponent's Shot Was "Too Good"</p>
-        <p class="too-good-text">{{ analysis.too_good }}</p>
+      {% if analysis.too_good %}
+      <div class="too-good-banner">
+        <div class="too-good-icon">🏆</div>
+        <div>
+          <p class="too-good-title">Opponent's shot was "too good"</p>
+          <p class="too-good-text">{{ analysis.too_good }}</p>
+        </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    <!-- Main Analysis -->
-    <h2 class="section-title">Point Breakdown</h2>
-    <div class="tips-list">
-      {% for item in analysis.breakdown %}
-      <div class="tip-card expandable-card" onclick="this.classList.toggle('open')">
-        <div class="tip-icon">🎾</div>
-        <p class="tip-text">{{ item }}</p>
-        <div class="tip-details">
-  <p><strong>Extra Coach Detail:</strong> Clicked open. This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-</div>
+      <h2 class="section-title">Point Breakdown</h2>
+      <div class="tips-list">
+        {% for item in analysis.breakdown %}
+        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')">
+          <div class="tip-icon">🎾</div>
+          <p class="tip-text">{{ item }}</p>
+          <div class="tip-details">
+            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
+          </div>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
 
-    <!-- Shot Suggestions -->
-    {% if analysis.shot_suggestions %}
-    <h2 class="section-title" style="margin-top: 40px;">Shot Suggestions</h2>
-    <div class="tips-list">
-      {% for item in analysis.shot_suggestions %}
-<div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--yellow);">        <div class="tip-icon">💡</div>
-        <p class="tip-text">{{ item }}</p>
-        <div class="tip-details">
-  <p><strong>Extra Coach Detail:</strong> Clicked open. This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-</div>
+      {% if analysis.shot_suggestions %}
+      <h2 class="section-title">Shot Suggestions</h2>
+      <div class="tips-list">
+        {% for item in analysis.shot_suggestions %}
+        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--ok);">
+          <div class="tip-icon">💡</div>
+          <p class="tip-text">{{ item }}</p>
+          <div class="tip-details">
+            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
+          </div>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
-    {% endif %}
+      {% endif %}
 
-    <!-- Pop-up Tips -->
-    {% if analysis.popup_tips %}
-    <h2 class="section-title" style="margin-top: 40px;">Opponent Pattern Alert</h2>
-    <div class="tips-list">
-      {% for item in analysis.popup_tips %}
-<div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: #ff5252;">        <div class="tip-icon">⚠️</div>
-        <p class="tip-text">{{ item }}</p>
-        <div class="tip-details">
-  <p><strong>Extra Coach Detail:</strong> Clicked open. This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-</div>
+      {% if analysis.popup_tips %}
+      <h2 class="section-title">Opponent Pattern Alert</h2>
+      <div class="tips-list">
+        {% for item in analysis.popup_tips %}
+        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--bad);">
+          <div class="tip-icon">⚠️</div>
+          <p class="tip-text">{{ item }}</p>
+          <div class="tip-details">
+            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
+          </div>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
-    {% endif %}
+      {% endif %}
 
+    </div>
   </section>
 
   <section class="cta-section">
-    <a href="/point-play" class="btn-analyze">Analyze Another Point</a>
+    <div class="wrap"><a href="/point-play" class="btn-analyze">Analyze another point</a></div>
   </section>
 
-  <footer class="footer">
-    <p>TennisAC &copy; 2025 &mdash; Built for junior athletes who grind.</p>
-  </footer>
+  <footer><p>TennisAC © 2026 — Built for players who want to get better.</p></footer>
 
   <script>
-    // Animate tip cards on load
     window.addEventListener('load', () => {
       document.querySelectorAll('.tip-card').forEach((card, i) => {
         card.style.opacity = '0';

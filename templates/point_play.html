@@ -5,85 +5,128 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TennisAC — Point Play Analysis</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --clay:#CD5A31;--clay-deep:#A8431F;--court:#B9E04C;--baseline:#2E7CA6;
+      --ink:#0B0E10;--surface:#14181C;--surface-2:#1B2126;--line:#272E34;
+      --gray:#8A9298;--gray-2:#5C666D;--white:#F3F6F4;--good:#B9E04C;--bad:#E5604A;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--ink);color:var(--white);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,5vw,56px);border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,14,16,.82);backdrop-filter:blur(12px);z-index:50}
+    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
+    .nav-logo span{color:var(--clay)}
+    .nav-right{display:flex;align-items:center;gap:20px}
+    .nav-user{color:var(--gray);font-size:14px;font-weight:500}
+    .nav-link{color:var(--gray);text-decoration:none;font-size:13px;font-weight:600}
+    .nav-link:hover{color:var(--white)}
+
+    .wrap{max-width:680px;margin:0 auto;padding:44px clamp(20px,5vw,32px) 60px}
+    .eyebrow{color:var(--baseline);font-size:11px;font-weight:600;margin-bottom:14px}
+    .page-title{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(30px,5vw,44px);letter-spacing:-.02em;text-transform:uppercase;line-height:1}
+    .page-sub{color:var(--gray);font-size:15px;line-height:1.6;margin-top:12px;margin-bottom:32px}
+
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:clamp(22px,4vw,34px)}
+    .field-group + .field-group{margin-top:24px}
+    .field-label{display:block;font-size:11px;color:var(--gray);margin-bottom:12px}
+
+    /* Won / Lost selector */
+    .wl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .wl-option{position:relative;cursor:pointer}
+    .wl-option input{position:absolute;opacity:0;pointer-events:none}
+    .wl-btn{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:22px;transition:all .15s}
+    .wl-icon{font-size:24px}
+    .wl-name{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.02em}
+    .wl-option:hover .wl-btn{border-color:var(--gray-2)}
+    .wl-option input[value="won"]:checked + .wl-btn{border-color:var(--good);background:rgba(185,224,76,.12);box-shadow:0 0 0 1px var(--good) inset}
+    .wl-option input[value="lost"]:checked + .wl-btn{border-color:var(--bad);background:rgba(229,96,74,.12);box-shadow:0 0 0 1px var(--bad) inset}
+    .wl-option input:focus-visible + .wl-btn{outline:2px solid var(--court);outline-offset:2px}
+
+    .input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:13px 14px;color:var(--white);font-family:'Inter',sans-serif;font-size:15px;line-height:1.6;transition:border-color .15s}
+    .input::placeholder{color:var(--gray-2)}
+    .input:focus{outline:none;border-color:var(--baseline);box-shadow:0 0 0 1px var(--baseline) inset}
+    textarea.input{resize:vertical}
+
+    .dropzone{position:relative}
+    .dz-inner{border:1.5px dashed var(--line);border-radius:14px;background:var(--surface-2);padding:36px 20px;text-align:center;transition:all .15s}
+    .dropzone:hover .dz-inner{border-color:var(--baseline);background:rgba(46,124,166,.06)}
+    .dz-icon{font-size:26px;margin-bottom:10px}
+    .dz-text{font-weight:600;font-size:15px}
+    .dz-sub{color:var(--gray-2);font-size:12.5px;margin-top:4px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
+    .dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+    .tip{color:var(--gray-2);font-size:12.5px;margin-top:10px}
+
+    .btn-analyze{width:100%;margin-top:28px;border:0;cursor:pointer;background:var(--baseline);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;padding:16px;border-radius:12px;transition:all .16s}
+    .btn-analyze:hover{filter:brightness(1.1);transform:translateY(-1px)}
+    .hidden{display:none}
+
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
 </head>
 <body>
 
   <nav class="nav">
-    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-logo">Tennis<span>AC</span></div>
     <div class="nav-right">
-      <span class="nav-user">👋 {{ user.name }}</span>
+      <span class="nav-user">{{ user.name }}</span>
       <a href="/" class="nav-link">← Back</a>
       <a href="/logout" class="nav-link">Log Out</a>
     </div>
   </nav>
 
-  <section class="upload-section">
-    <div class="card">
-      <h2 class="card-title">Point Play Analysis</h2>
-      <p style="color: var(--muted); margin-bottom: 28px; font-size: 0.95rem; line-height: 1.7;">
-        Upload a video of a full point. TennisAC will analyze the strategy, shot selection,
-        and decision-making — not just technique.
-      </p>
+  <div class="wrap">
+    <p class="eyebrow mono">Strategy Analysis</p>
+    <h1 class="page-title">Point Play</h1>
+    <p class="page-sub">Upload a full point and TennisAC breaks down the strategy, shot selection, and decision-making — not just your technique.</p>
 
+    <div class="card">
       <form action="/point-play" method="POST" enctype="multipart/form-data" id="uploadForm">
 
-        <!-- Won or Lost -->
         <div class="field-group">
-          <label class="field-label">Did you win or lose this point?</label>
-          <div class="shot-grid" style="grid-template-columns: 1fr 1fr;">
-            <label class="shot-option">
+          <label class="field-label mono">Did you win or lose this point?</label>
+          <div class="wl-grid">
+            <label class="wl-option">
               <input type="radio" name="point_result" value="won" required />
-              <span class="shot-btn">
-                <span class="shot-icon">✅</span>
-                <span class="shot-name">Point Won</span>
-              </span>
+              <span class="wl-btn"><span class="wl-icon">✅</span><span class="wl-name">Point Won</span></span>
             </label>
-            <label class="shot-option">
+            <label class="wl-option">
               <input type="radio" name="point_result" value="lost" />
-              <span class="shot-btn">
-                <span class="shot-icon">❌</span>
-                <span class="shot-name">Point Lost</span>
-              </span>
+              <span class="wl-btn"><span class="wl-icon">❌</span><span class="wl-name">Point Lost</span></span>
             </label>
           </div>
         </div>
 
-        <!-- Optional context -->
         <div class="field-group">
-          <label class="field-label">Optional: Describe what happened (helps the AI)</label>
+          <label class="field-label mono">Optional: describe what happened (helps the AI)</label>
           <textarea name="point_context" class="input" rows="3"
-            placeholder="e.g. I was at the baseline, hit a crosscourt forehand, opponent came to net, I tried a passing shot..."
-            style="resize: vertical; line-height: 1.6;"></textarea>
+            placeholder="e.g. I was at the baseline, hit a crosscourt forehand, opponent came to net, I tried a passing shot..."></textarea>
         </div>
 
-        <!-- Upload -->
         <div class="field-group">
-          <label class="field-label">Upload Point Video</label>
+          <label class="field-label mono">Upload point video</label>
           <div class="dropzone" id="dropzone">
             <div class="dz-inner" id="dzInner">
               <div class="dz-icon">📹</div>
-              <p class="dz-text">Drag & drop your point video here</p>
-              <p class="dz-sub">or click to browse · MP4, MOV, AVI · max 60 seconds</p>
+              <p class="dz-text">Drag &amp; drop your point video here</p>
+              <p class="dz-sub">or click to browse · MP4 · MOV · AVI · max 60s</p>
             </div>
             <input type="file" name="video" id="videoInput" accept=".mp4,.mov,.avi,.mkv" required />
           </div>
-          <p class="tip">💡 Tip: Include the full point from first shot to last for best analysis.</p>
+          <p class="tip">Include the full point from first shot to last for the best read.</p>
         </div>
 
         <button type="submit" class="btn-analyze" id="submitBtn">
-          <span id="btnText">Analyze This Point</span>
-          <span id="btnLoader" class="hidden">Analyzing point strategy...</span>
+          <span id="btnText">Analyze this point</span>
+          <span id="btnLoader" class="hidden">Analyzing point strategy…</span>
         </button>
 
       </form>
     </div>
-  </section>
-
-  <footer class="footer">
-    <p>TennisAC &copy; 2025 &mdash; Built for junior athletes who grind.</p>
-  </footer>
+  </div>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
