@@ -6,62 +6,42 @@
   <title>TennisAC — Point Analysis Results</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <style>
-    :root{
-      --clay:#CD5A31;--clay-deep:#A8431F;--court:#B9E04C;--baseline:#2E7CA6;
-      --ink:#0B0E10;--surface:#14181C;--surface-2:#1B2126;--line:#272E34;
-      --gray:#8A9298;--gray-2:#5C666D;--white:#F3F6F4;--good:#B9E04C;--ok:#F2C14E;--bad:#E5604A;
-    }
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--ink);color:var(--white);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
-
-    .nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,5vw,56px);border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,14,16,.82);backdrop-filter:blur(12px);z-index:50}
-    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
-    .nav-logo span{color:var(--clay)}
-    .nav-right{display:flex;align-items:center;gap:20px}
-    .nav-link{color:var(--gray);text-decoration:none;font-size:13px;font-weight:600}
-    .nav-link:hover{color:var(--white)}
-
-    .wrap{max-width:760px;margin:0 auto;padding:0 clamp(20px,5vw,32px)}
-
-    .results-hero{text-align:center;padding:52px 0 20px}
-    .results-sub{color:var(--baseline);font-size:12px;font-weight:600;margin-bottom:14px}
-    .results-title{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(36px,7vw,60px);letter-spacing:-.03em;text-transform:uppercase;line-height:.95}
+    .wrap{max-width:780px;margin:0 auto;padding:0 clamp(20px,5vw,32px)}
+    .results-hero{text-align:center;padding:56px 0 22px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(38px,7vw,66px);letter-spacing:-.02em;line-height:.92;margin:0}
     .result-won{color:var(--good)}
     .result-lost{color:var(--bad)}
 
-    .section-title{font-family:'Archivo',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em;margin:36px 0 18px}
-    .metrics-section{padding:16px 0 8px}
+    .section-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;letter-spacing:-.01em;margin:38px 0 18px}
+    .metrics-section{padding:18px 0 10px}
 
-    .too-good-banner{display:flex;gap:16px;align-items:flex-start;background:rgba(242,193,78,.10);border:1px solid rgba(242,193,78,.4);border-radius:14px;padding:20px 22px;margin-bottom:8px}
-    .too-good-icon{font-size:26px}
-    .too-good-title{font-family:'Archivo',sans-serif;font-weight:800;font-size:16px;color:var(--ok);margin-bottom:6px}
-    .too-good-text{color:var(--gray);font-size:14px;line-height:1.6}
+    .too-good-banner{display:flex;gap:16px;align-items:flex-start;background:var(--ok-bg);border:1px solid rgba(200,129,30,.35);border-radius:16px;padding:20px 22px;margin-bottom:8px}
+    .too-good-icon{display:flex;color:var(--ok)}
+    .too-good-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;color:var(--ok);margin-bottom:6px}
+    .too-good-text{color:var(--muted);font-size:14px;line-height:1.6}
 
     .tips-list{display:flex;flex-direction:column;gap:12px}
-    .tip-card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--baseline);border-radius:12px;padding:18px 20px;cursor:pointer}
-    .tip-card .tip-icon{font-size:18px;float:left;margin-right:12px}
-    .tip-text{font-size:14.5px;line-height:1.6;color:var(--white);overflow:hidden}
-    .tip-details{clear:both;max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--gray);font-size:13.5px;line-height:1.6}
+    .tip-card{background:#fff;border:1px solid var(--border-soft);border-left:3px solid var(--accent);border-radius:14px;padding:18px 20px;cursor:pointer;
+      box-shadow:0 12px 28px -20px rgba(120,50,0,.25);transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s cubic-bezier(.16,1,.3,1)}
+    .tip-card:hover{transform:translateY(-1px)}
+    .tip-card .tip-icon{display:flex;float:left;margin-right:12px;color:var(--accent)}
+    .tip-text{font-size:14.5px;line-height:1.6;color:var(--ink);overflow:hidden}
+    .tip-details{clear:both;max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--muted);font-size:13.5px;line-height:1.6}
     .tip-details p{margin-top:12px}
-    .tip-details strong{color:var(--white);font-weight:600}
+    .tip-details strong{color:var(--ink);font-weight:600}
     .tip-card.open .tip-details{max-height:300px}
 
-    .cta-section{text-align:center;padding:28px 0 48px}
-    .btn-analyze{display:inline-block;text-decoration:none;border:0;cursor:pointer;background:var(--baseline);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;padding:15px 34px;border-radius:12px;transition:all .16s}
-    .btn-analyze:hover{filter:brightness(1.1);transform:translateY(-1px)}
-
-    footer{border-top:1px solid var(--line);padding:26px 0 40px}
-    footer p{color:var(--gray-2);font-size:12.5px;text-align:center}
-    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+    .cta-section{text-align:center;padding:30px 0 54px}
   </style>
 </head>
 <body>
 
-  <nav class="nav">
-    <div class="nav-logo">Tennis<span>AC</span></div>
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
     <div class="nav-right">
       <a href="/point-play" class="nav-link">← Analyze another point</a>
       <a href="/" class="nav-link">Home</a>
@@ -70,7 +50,7 @@
 
   <section class="results-hero">
     <div class="wrap">
-      <p class="results-sub mono">Point Play Analysis</p>
+      <p class="eyebrow">Point Play Analysis</p>
       <h1 class="results-title {% if point_result == 'won' %}result-won{% else %}result-lost{% endif %}">
         {% if point_result == 'won' %}Point Won{% else %}Point Lost{% endif %}
       </h1>
@@ -82,7 +62,7 @@
 
       {% if analysis.too_good %}
       <div class="too-good-banner">
-        <div class="too-good-icon">🏆</div>
+        <div class="too-good-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 01-10 0V4z"/><path d="M7 5.5H4.5a2.5 2.5 0 002.5 2.5M17 5.5h2.5a2.5 2.5 0 01-2.5 2.5"/><path d="M9.5 17h5M12 13v4M8.5 20h7"/></svg></div>
         <div>
           <p class="too-good-title">Opponent's shot was "too good"</p>
           <p class="too-good-text">{{ analysis.too_good }}</p>
@@ -94,7 +74,7 @@
       <div class="tips-list">
         {% for item in analysis.breakdown %}
         <div class="tip-card expandable-card" onclick="this.classList.toggle('open')">
-          <div class="tip-icon">🎾</div>
+          <div class="tip-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M4.3 6.8c2.8 2.6 2.8 8 0 10.4M19.7 6.8c-2.8 2.6-2.8 8 0 10.4"/></svg></div>
           <p class="tip-text">{{ item }}</p>
           <div class="tip-details">
             <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
@@ -107,8 +87,8 @@
       <h2 class="section-title">Shot Suggestions</h2>
       <div class="tips-list">
         {% for item in analysis.shot_suggestions %}
-        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--ok);">
-          <div class="tip-icon">💡</div>
+        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--good);">
+          <div class="tip-icon" style="color:var(--good)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.3 21h3.4"/><path d="M12 3.2a6 6 0 00-3.5 10.9c.6.45 1 1.15 1 1.9v.5h5v-.5c0-.75.4-1.45 1-1.9A6 6 0 0012 3.2z"/></svg></div>
           <p class="tip-text">{{ item }}</p>
           <div class="tip-details">
             <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
@@ -123,7 +103,7 @@
       <div class="tips-list">
         {% for item in analysis.popup_tips %}
         <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--bad);">
-          <div class="tip-icon">⚠️</div>
+          <div class="tip-icon" style="color:var(--bad)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.7l9 15.8H3l9-15.8z"/><path d="M12 10v4.3M12 17h.01"/></svg></div>
           <p class="tip-text">{{ item }}</p>
           <div class="tip-details">
             <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
@@ -137,11 +117,15 @@
   </section>
 
   <section class="cta-section">
-    <div class="wrap"><a href="/point-play" class="btn-analyze">Analyze another point</a></div>
+    <div class="wrap"><a href="/point-play" class="btn-cta">Analyze another point</a></div>
   </section>
 
-  <footer><p>TennisAC © 2026 — Built for players who want to get better.</p></footer>
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
 
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
   <script>
     window.addEventListener('load', () => {
       document.querySelectorAll('.tip-card').forEach((card, i) => {

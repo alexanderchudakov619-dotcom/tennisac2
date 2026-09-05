@@ -6,175 +6,142 @@
   <title>TennisAC — AI Tennis Coach</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <style>
-    :root{
-      /* Roland-Garos inspired */
-      --clay:#CD5A31;          /* signature terracotta */
-      --clay-deep:#A8431F;
-      --court:#B9E04C;         /* tennis-ball green */
-      --baseline:#2E7CA6;      /* cool court blue */
-      --ink:#0B0E10;           /* near-black bg */
-      --surface:#14181C;       /* elevated panel */
-      --surface-2:#1B2126;     /* raised tile */
-      --line:#272E34;          /* hairline */
-      --gray:#8A9298;          /* muted text */
-      --gray-2:#5C666D;        /* fainter */
-      --white:#F3F6F4;
-      --radius:14px;
+    /* ---- Hero ---- */
+    .hero{position:relative;min-height:88vh;display:flex;flex-direction:column;justify-content:center;overflow:hidden;padding-top:20px}
+    .hero-orb{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
+    .hero-dotgrid{
+      position:absolute;inset:0;z-index:0;pointer-events:none;
+      background-image:radial-gradient(rgba(255,80,0,.14) 1px,transparent 1px);background-size:36px 36px;
+      -webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 50%,black 20%,transparent 100%);
+      mask-image:radial-gradient(ellipse 75% 65% at 50% 50%,black 20%,transparent 100%);
     }
-    *{box-sizing:border-box;margin:0;padding:0}
-    html{scroll-behavior:smooth}
-    body{
-      background:var(--ink);
-      color:var(--white);
-      font-family:'Inter',sans-serif;
-      line-height:1.5;
-      -webkit-font-smoothing:antialiased;
-      min-height:100vh;
+    .hero-bgword{
+      position:absolute;z-index:0;right:-4%;bottom:6%;font-family:'Barlow Condensed',sans-serif;font-weight:900;
+      font-size:clamp(140px,20vw,260px);line-height:1;letter-spacing:-.05em;color:rgba(255,70,0,.05);
+      user-select:none;pointer-events:none;white-space:nowrap;animation:float-b 14s ease-in-out infinite;
     }
-    .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
-
-    /* ---------- Nav ---------- */
-    .nav{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:20px clamp(20px,5vw,56px);
-      border-bottom:1px solid var(--line);
-      position:sticky;top:0;background:rgba(11,14,16,.82);
-      backdrop-filter:blur(12px);z-index:50;
+    .hero-ring{position:absolute;z-index:1;border-radius:50%;border:1px solid rgba(255,80,0,.15);pointer-events:none}
+    .hero-scan{position:absolute;left:0;right:0;height:2px;z-index:1;pointer-events:none;
+      background:linear-gradient(90deg,transparent,rgba(255,90,0,.3),transparent);animation:scan-line 4.5s linear infinite}
+    .hero-inner{position:relative;z-index:3;max-width:1180px;margin:0 auto;padding:44px clamp(20px,5vw,48px) 70px;width:100%}
+    .headline{margin-bottom:38px}
+    .headline-row{overflow:hidden}
+    .headline-row .words{
+      display:flex;gap:.18em;font-family:'Barlow Condensed',sans-serif;font-weight:900;
+      font-size:clamp(52px,10vw,124px);line-height:.92;letter-spacing:-.025em;color:var(--ink);
+      animation:word-in .85s both;
     }
-    .nav-logo{font-family:'Archivo',sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
-    .nav-logo span{color:var(--clay)}
-    .nav-right{display:flex;align-items:center;gap:22px}
-    .nav-user{color:var(--gray);font-size:14px;font-weight:500}
-    .nav-link{color:var(--gray);text-decoration:none;font-size:13px;font-weight:600;transition:color .15s}
-    .nav-link:hover{color:var(--white)}
+    .glitch{position:relative;display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-style:italic;
+      font-size:clamp(52px,10vw,124px);line-height:.92;letter-spacing:-.025em;color:var(--accent)}
+    .glitch .g-main{animation:glitch-main 5s ease-in-out infinite;display:inline-block}
+    .glitch .g1,.glitch .g2{position:absolute;inset:0;display:inline-block}
+    .glitch .g1{color:#FF8C40;animation:glitch-c1 5s ease-in-out infinite}
+    .glitch .g2{color:#C83000;animation:glitch-c2 5s ease-in-out .1s infinite}
+    @keyframes glitch-main{0%,92%,100%{transform:skewX(0)}94%{transform:skewX(-1deg) translateX(2px)}96%{transform:skewX(1deg) translateX(-2px)}98%{transform:skewX(0) translateX(1px)}}
+    @keyframes glitch-c1{0%,100%{clip-path:inset(0 0 96% 0);opacity:.7}20%{clip-path:inset(52% 0 28% 0);opacity:.9}40%{clip-path:inset(22% 0 62% 0);opacity:.8}60%{clip-path:inset(78% 0 4% 0);opacity:.7}80%{clip-path:inset(38% 0 44% 0);opacity:.9}}
+    @keyframes glitch-c2{0%,100%{clip-path:inset(95% 0 0 0);opacity:.6}30%{clip-path:inset(8% 0 78% 0);opacity:.8}55%{clip-path:inset(62% 0 22% 0);opacity:.7}75%{clip-path:inset(28% 0 58% 0);opacity:.9}}
+    .hero-sub-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:28px;animation:word-in .9s .3s both}
+    .hero-sub-row p{font-size:17px;line-height:1.72;color:var(--muted);max-width:420px;font-weight:300;margin:0}
+    .hero-cta-col{display:flex;flex-direction:column;gap:12px;align-items:flex-end}
+    .scroll-hint{font-size:11px;color:var(--muted-4);letter-spacing:.12em;text-transform:uppercase}
 
-    .wrap{max-width:1080px;margin:0 auto;padding:0 clamp(20px,5vw,56px)}
+    /* ---- Stats ---- */
+    .stats-section{padding:88px clamp(20px,5vw,48px);max-width:1180px;margin:0 auto}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+    .stat-tile{border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);border-right:1px solid var(--border-soft);padding:36px 30px;background:#fff}
+    .stat-tile:first-child{border-left:1px solid var(--border-soft)}
+    .stat-tile.hi{background:linear-gradient(160deg,rgba(255,80,0,.07),rgba(255,80,0,.02))}
+    .stat-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(46px,5vw,72px);letter-spacing:-.03em;line-height:1;color:var(--ink);display:block}
+    .stat-tile.hi .stat-num{color:var(--accent)}
+    .stat-label{font-size:13px;color:var(--muted-3);display:block;margin-top:8px}
 
-    /* ---------- Hero ---------- */
-    .hero{position:relative;overflow:hidden;padding:64px 0 44px}
-    .hero-lines{position:absolute;inset:0;opacity:.5;pointer-events:none}
-    .hero-lines::before,.hero-lines::after{
-      content:"";position:absolute;left:-10%;right:-10%;height:1px;
-      background:linear-gradient(90deg,transparent,var(--clay),transparent);opacity:.35;
-    }
-    .hero-lines::before{top:38%;transform:rotate(-1.5deg)}
-    .hero-lines::after{top:72%;transform:rotate(-1.5deg)}
-    .eyebrow{color:var(--clay);font-size:12px;font-weight:600;margin-bottom:18px}
-    .hero h1{
-      font-family:'Archivo',sans-serif;font-weight:900;
-      font-size:clamp(40px,7vw,74px);line-height:.96;letter-spacing:-.03em;
-      text-transform:uppercase;max-width:14ch;
-    }
-    .hero h1 em{font-style:normal;color:var(--clay)}
-    .hero-sub{color:var(--gray);font-size:17px;max-width:52ch;margin-top:20px}
+    /* ---- Profile chips ---- */
+    .profile-section{padding:0 clamp(20px,5vw,48px) 76px;max-width:1180px;margin:0 auto}
+    .chip-row{display:flex;flex-wrap:wrap;gap:12px}
 
-    .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
-    .chip{
-      display:inline-flex;align-items:center;gap:8px;
-      background:var(--surface-2);border:1px solid var(--line);
-      padding:8px 14px;border-radius:999px;font-size:13px;font-weight:500;color:var(--white);
-    }
-    .chip b{color:var(--court);font-weight:600}
-    .chip .k{color:var(--gray-2);font-size:11px}
+    /* ---- How it works ---- */
+    .how-section{position:relative;padding:110px clamp(20px,5vw,48px);clip-path:polygon(0 4%,100% 0,100% 96%,0 100%)}
+    .how-bgword{position:absolute;bottom:-6%;right:-2%;z-index:0;font-family:'Barlow Condensed',sans-serif;font-weight:900;
+      font-size:clamp(120px,17vw,220px);line-height:1;letter-spacing:-.05em;color:rgba(255,80,0,.06);user-select:none;pointer-events:none;white-space:nowrap}
+    .how-inner{position:relative;z-index:3;max-width:1180px;margin:0 auto}
+    .how-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(34px,4.6vw,60px);letter-spacing:-.02em;color:var(--on-dark);margin:0 0 56px;line-height:1}
+    .steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .step-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:36px 32px;transition:transform .3s ease}
+    .step-card:hover{transform:translateY(-6px)}
+    .step-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px}
+    .step-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:64px;color:rgba(255,90,0,.2);line-height:1;letter-spacing:-.04em}
+    .step-icon{width:42px;height:42px;border-radius:50%;background:rgba(255,90,0,.18);border:1px solid rgba(255,90,0,.35);display:flex;align-items:center;justify-content:center;color:#FF7050;font-size:19px}
+    .step-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:29px;color:var(--on-dark);margin:0 0 12px}
+    .step-desc{font-size:14px;color:var(--on-dark-muted);line-height:1.7;margin:0 0 24px;font-weight:300}
+    .step-bar-bg{height:2px;background:rgba(255,90,0,.15);border-radius:4px;overflow:hidden}
+    .step-bar-fill{height:100%;background:linear-gradient(90deg,#FF6A00,#FF3500);border-radius:4px}
 
-    /* ---------- Process strip (moved up) ---------- */
-    .process{
-      display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
-      background:var(--line);border:1px solid var(--line);border-radius:var(--radius);
-      overflow:hidden;margin:8px 0 4px;
-    }
-    .p-step{background:var(--surface);padding:18px 20px}
-    .p-num{font-family:'IBM Plex Mono',monospace;color:var(--clay);font-size:12px;font-weight:600;letter-spacing:.1em}
-    .p-txt{color:var(--gray);font-size:13.5px;margin-top:6px}
+    /* ---- Analyse section ---- */
+    .analyse-section{padding:96px clamp(20px,5vw,48px) 100px;max-width:1180px;margin:0 auto}
+    .analyse-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:44px;flex-wrap:wrap;gap:16px}
+    .analyse-head-left{display:flex;align-items:baseline;gap:20px}
+    .analyse-head-left .big-num{font-size:clamp(56px,7vw,88px)}
+    .analyse-head-left h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(26px,3.6vw,46px);color:var(--ink);margin:0;letter-spacing:-.02em}
+    .analyse-hint{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-3)}
+    .select-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-3);margin-bottom:16px}
 
-    /* ---------- Console ---------- */
-    .console{padding:40px 0 20px}
-    .console-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px}
-    .console-head h2{font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.01em}
-    .console-head .hint{color:var(--gray-2);font-size:11px}
-
-    .panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:clamp(20px,3vw,32px)}
-    .field-label{display:block;font-size:11px;color:var(--gray);margin-bottom:12px}
-
-    /* Shot grid — 5 across incl. Point Play (photo tiles) */
-    .shot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-    .shot-option{cursor:pointer}
+    .shot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:30px}
+    .shot-option{position:relative;cursor:pointer;display:block}
     .shot-option input{position:absolute;opacity:0;pointer-events:none}
-    .shot-btn{
-      position:relative;display:flex;align-items:flex-end;
-      height:132px;border:1px solid var(--line);border-radius:12px;overflow:hidden;
-      background-size:cover;background-position:center;transition:all .16s ease;
+    .shot-card{
+      position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:10px;
+      padding:26px 14px 22px;border-radius:20px;border:2px solid rgba(255,80,0,.1);background:#fff;
+      box-shadow:0 2px 16px rgba(0,0,0,.05);transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,border-color .2s;
     }
-    .shot-btn::after{content:"";position:absolute;inset:0;
-      background:linear-gradient(180deg,rgba(11,14,16,.05) 30%,rgba(11,14,16,.82) 100%)}
-    .shot-name{position:relative;z-index:1;padding:10px 12px;font-family:'Archivo',sans-serif;
-      font-weight:800;font-size:13px;letter-spacing:.01em;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)}
-    .shot-sub{position:relative;z-index:1;font-size:9.5px;color:var(--baseline);
-      font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;padding:0 12px 10px}
-    .shot-option:hover .shot-btn{border-color:var(--gray-2);transform:translateY(-2px)}
-    .shot-option input:checked + .shot-btn{
-      border-color:var(--clay);box-shadow:0 0 0 2px var(--clay) inset;
+    .shot-option:hover .shot-card{transform:translateY(-8px) scale(1.03)}
+    .shot-watermark{position:absolute;bottom:-10px;right:2px;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:58px;color:rgba(0,0,0,.04);line-height:1;letter-spacing:-.04em;user-select:none}
+    .shot-check{position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;display:none;align-items:center;justify-content:center;color:#fff}
+    .shot-name{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);position:relative;z-index:1}
+    .shot-sub{font-size:10.5px;color:var(--muted-3);line-height:1.5;text-align:center;position:relative;z-index:1}
+    .shot-option[data-accent="serve"] input:checked ~ .shot-card{border-color:#FF5A00;background:linear-gradient(160deg,rgba(255,90,0,.1),rgba(255,90,0,.03))}
+    .shot-option[data-accent="forehand"] input:checked ~ .shot-card{border-color:#FF7A20;background:linear-gradient(160deg,rgba(255,122,32,.1),rgba(255,122,32,.03))}
+    .shot-option[data-accent="backhand"] input:checked ~ .shot-card{border-color:#E84A00;background:linear-gradient(160deg,rgba(232,74,0,.1),rgba(232,74,0,.03))}
+    .shot-option[data-accent="rally"] input:checked ~ .shot-card{border-color:#D44000;background:linear-gradient(160deg,rgba(212,64,0,.1),rgba(212,64,0,.03))}
+    .shot-option input:checked ~ .shot-card{box-shadow:0 16px 40px rgba(255,90,0,.22)}
+    .shot-option input:checked ~ .shot-card .shot-watermark{color:rgba(255,90,0,.16)}
+    .shot-option input:checked ~ .shot-card .shot-name{color:var(--accent-deep)}
+    .shot-option[data-accent="serve"] input:checked ~ .shot-card .shot-check{background:#FF5A00}
+    .shot-option[data-accent="forehand"] input:checked ~ .shot-card .shot-check{background:#FF7A20}
+    .shot-option[data-accent="backhand"] input:checked ~ .shot-card .shot-check{background:#E84A00}
+    .shot-option[data-accent="rally"] input:checked ~ .shot-card .shot-check{background:#D44000}
+    .shot-option input:checked ~ .shot-card .shot-check{display:flex}
+    .shot-option input:focus-visible ~ .shot-card{outline:2px solid var(--accent);outline-offset:2px}
+
+    .pp-card{
+      position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+      padding:26px 14px 22px;border-radius:20px;border:2px solid rgba(200,56,0,.16);background:linear-gradient(160deg,rgba(200,56,0,.08),rgba(200,56,0,.02));
+      text-decoration:none;box-shadow:0 2px 16px rgba(0,0,0,.05);transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,border-color .2s;
     }
-    .shot-option input:checked + .shot-btn::before{
-      content:"\2713";position:absolute;top:8px;right:8px;z-index:2;
-      width:22px;height:22px;border-radius:50%;background:var(--clay);color:#fff;
-      display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
-    }
-    .shot-option input:focus-visible + .shot-btn{outline:2px solid var(--court);outline-offset:2px}
+    .pp-card:hover{transform:translateY(-8px) scale(1.03);border-color:#C83800;box-shadow:0 16px 40px rgba(200,56,0,.22)}
+    .pp-card .shot-watermark{color:rgba(200,56,0,.16)}
+    .pp-card .shot-name{color:#C83800}
+    .pp-arrow{font-size:11px;color:#C83800;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
 
-    /* Point Play tile (link, distinct blue) */
-    .pp-tile{
-      position:relative;display:flex;flex-direction:column;justify-content:flex-end;
-      height:132px;text-decoration:none;border:1px solid rgba(46,124,166,.55);
-      border-radius:12px;overflow:hidden;background-size:cover;background-position:center;transition:all .16s ease;
-    }
-    .pp-tile::after{content:"";position:absolute;inset:0;
-      background:linear-gradient(180deg,rgba(46,124,166,.10) 20%,rgba(11,14,16,.85) 100%)}
-    .pp-tile:hover{transform:translateY(-2px);border-color:var(--baseline);box-shadow:0 0 0 2px var(--baseline) inset}
-
-    /* Dropzone */
-    .dropzone{position:relative;margin-top:6px}
-    .dz-inner{
-      border:1.5px dashed var(--line);border-radius:14px;background:var(--surface-2);
-      padding:38px 20px;text-align:center;transition:all .16s;
-    }
-    .dropzone:hover .dz-inner{border-color:var(--clay);background:rgba(205,90,49,.06)}
-    .dz-icon{font-size:26px;margin-bottom:10px}
-    .dz-text{font-weight:600;font-size:15px}
-    .dz-sub{color:var(--gray-2);font-size:12.5px;margin-top:4px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
-    .dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-    .tip{color:var(--gray-2);font-size:12.5px;margin-top:10px}
-
-    .field-group + .field-group{margin-top:24px}
-
-    .btn-analyze{
-      width:100%;margin-top:28px;border:0;cursor:pointer;
-      background:var(--clay);color:#fff;font-family:'Archivo',sans-serif;font-weight:800;
-      font-size:15px;letter-spacing:.02em;text-transform:uppercase;
-      padding:17px;border-radius:12px;transition:all .16s;
-    }
-    .btn-analyze:hover{background:var(--clay-deep);transform:translateY(-1px)}
-    .btn-analyze:active{transform:translateY(0)}
-    .hidden{display:none}
-
-    footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 40px}
-    footer p{color:var(--gray-2);font-size:12.5px;text-align:center}
-
-    @media(max-width:820px){
+    @media(max-width:960px){
+      .stats-grid{grid-template-columns:repeat(2,1fr)}
+      .steps-grid{grid-template-columns:1fr}
       .shot-grid{grid-template-columns:repeat(2,1fr)}
-      .process{grid-template-columns:1fr}
     }
-    @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
   </style>
 </head>
 <body>
 
-  <nav class="nav">
-    <div class="nav-logo">Tennis<span>AC</span></div>
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
     <div class="nav-right">
-      <span class="nav-user">{{ user.name }}</span>
+      <div class="nav-user-chip">
+        <div class="nav-avatar">{{ (user.name or '?')[0]|upper }}</div>
+        <span class="name">{{ user.name }}</span>
+        <div class="nav-dot"></div>
+      </div>
       <a href="/profile/edit" class="nav-link">Edit Profile</a>
       <a href="/logout" class="nav-link">Log Out</a>
     </div>
@@ -182,91 +149,200 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-lines"></div>
-    <div class="wrap">
-      <p class="eyebrow mono">AI Tennis Coach</p>
-      <h1>Read your game<br>like a <em>coach</em> would.</h1>
-      <p class="hero-sub">Upload a shot or a full point. TennisAC breaks down your mechanics and strategy, then gives you coaching built around your level and style.</p>
+    <div class="grain"><svg width="100%" height="100%"><filter id="g-hero"><feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#g-hero)"/></svg></div>
 
-      <div class="chips">
-        <span class="chip"><span class="k mono">Player</span> {{ user.name }}</span>
-        {% if user.utr %}<span class="chip"><span class="k mono">UTR</span> <b>{{ user.utr }}</b></span>{% endif %}
-        {% if user.play_like %}<span class="chip"><span class="k mono">Models</span> {{ user.play_like }}</span>{% endif %}
-        {% if user.backhand_style %}<span class="chip"><span class="k mono">Backhand</span> {{ user.backhand_style }}</span>{% endif %}
+    <div class="hero-orb" style="width:480px;height:480px;top:-14%;left:-8%;background:rgba(255,120,0,.2);filter:blur(230px);animation:float-a 12s ease-in-out infinite"></div>
+    <div class="hero-orb" style="width:360px;height:360px;top:35%;left:60%;background:rgba(255,50,0,.16);filter:blur(175px);animation:float-b 13s ease-in-out 2s infinite"></div>
+    <div class="hero-orb" style="width:240px;height:240px;top:60%;left:12%;background:rgba(255,170,0,.14);filter:blur(120px);animation:float-a 9s ease-in-out 1s infinite"></div>
+
+    <div class="hero-dotgrid"></div>
+    <div class="hero-bgword">TENNIS</div>
+
+    <div class="hero-ring" style="top:16%;right:10%;width:190px;height:190px;animation:spin 22s linear infinite"></div>
+    <div class="hero-ring" style="bottom:20%;left:6%;width:120px;height:120px;animation:spin-r 18s linear infinite"></div>
+    <div class="hero-scan"></div>
+
+    <div class="hero-inner">
+      <p class="eyebrow">AI Tennis Coach · Personalised to your UTR</p>
+
+      <div class="headline">
+        <div class="headline-row"><div class="words" style="animation-delay:.05s">READ YOUR</div></div>
+        <div class="headline-row"><div class="words" style="animation-delay:.18s">GAME LIKE A</div></div>
+        <div class="headline-row">
+          <span class="glitch" style="animation-delay:.3s">
+            <span class="g-main">COACH WOULD.</span>
+            <span class="g1" aria-hidden="true">COACH WOULD.</span>
+            <span class="g2" aria-hidden="true">COACH WOULD.</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="hero-sub-row">
+        <p>Upload a shot or a full point. TennisAC breaks down your mechanics frame by frame and returns coaching tuned to <span class="serif-em" style="color:#FF6030">your</span> game.</p>
+        <div class="hero-cta-col">
+          <a href="#analyze" class="btn-cta">Analyse My Shot →</a>
+          <span class="scroll-hint">↓ Scroll to begin</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- PROCESS (moved up) -->
-  <div class="wrap">
-    <div class="process">
-      <div class="p-step"><div class="p-num">01 / UPLOAD</div><div class="p-txt">Drop a short clip of your shot or point.</div></div>
-      <div class="p-step"><div class="p-num">02 / ANALYZE</div><div class="p-txt">AI tracks your movement frame by frame.</div></div>
-      <div class="p-step"><div class="p-num">03 / IMPROVE</div><div class="p-txt">Get scores and coaching tuned to your profile.</div></div>
+  <div class="marquee-band">
+    <div class="marquee-track">
+      {% for _ in range(16) %}<span>SERVE · FOREHAND · BACKHAND · RALLY · POINT PLAY · AI COACHING ·</span>{% endfor %}
+      {% for _ in range(16) %}<span>SERVE · FOREHAND · BACKHAND · RALLY · POINT PLAY · AI COACHING ·</span>{% endfor %}
     </div>
   </div>
 
-  <!-- CONSOLE -->
-  <section class="console">
-    <div class="wrap">
-      <div class="console-head">
-        <h2>Analyze your game</h2>
-        <span class="hint mono">Side or rear angle · ≤30s clips</span>
-      </div>
-
-      <div class="panel">
-        <form action="/analyze" method="POST" enctype="multipart/form-data" id="uploadForm">
-          <div class="field-group">
-            <label class="field-label mono">Select what to analyze</label>
-            <div class="shot-grid">
-              <label class="shot-option">
-                <input type="radio" name="shot_type" value="serve" checked />
-                <span class="shot-btn" style="background-image:url('{{ url_for('static', filename='img/serve.webp') }}')"><span class="shot-name">Serve</span></span>
-              </label>
-              <label class="shot-option">
-                <input type="radio" name="shot_type" value="forehand" />
-                <span class="shot-btn" style="background-image:url('{{ url_for('static', filename='img/forehand.webp') }}')"><span class="shot-name">Forehand</span></span>
-              </label>
-              <label class="shot-option">
-                <input type="radio" name="shot_type" value="backhand" />
-                <span class="shot-btn" style="background-image:url('{{ url_for('static', filename='img/backhand.webp') }}')"><span class="shot-name">Backhand</span></span>
-              </label>
-              <label class="shot-option">
-                <input type="radio" name="shot_type" value="rally" />
-                <span class="shot-btn" style="background-image:url('{{ url_for('static', filename='img/rally.jpeg') }}')"><span class="shot-name">Rally</span></span>
-              </label>
-              <a href="/point-play" class="pp-tile" style="background-image:url('{{ url_for('static', filename='img/pointplay.webp') }}')">
-                <span class="shot-name">Point Play</span><span class="shot-sub">Analyze &rarr;</span>
-              </a>
-            </div>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label mono">Upload your video</label>
-            <div class="dropzone" id="dropzone">
-              <div class="dz-inner" id="dzInner">
-                <div class="dz-icon">📹</div>
-                <p class="dz-text">Drag &amp; drop your video here</p>
-                <p class="dz-sub">or click to browse · MP4 · MOV · AVI · max 30s</p>
-              </div>
-              <input type="file" name="video" id="videoInput" accept=".mp4,.mov,.avi,.mkv" required />
-            </div>
-            <p class="tip">Film from the side or slightly behind for the most accurate read.</p>
-          </div>
-
-          <button type="submit" class="btn-analyze" id="submitBtn">
-            <span id="btnText">Analyze my shot</span>
-            <span id="btnLoader" class="hidden">Analyzing…</span>
-          </button>
-        </form>
+  <!-- STATS -->
+  <section class="stats-section">
+    <div class="rev">
+      <p class="eyebrow">By the numbers</p>
+      <div class="stats-grid">
+        <div class="stat-tile"><span class="stat-num" data-countup="10247">0</span><span class="stat-label">Shots analysed</span></div>
+        <div class="stat-tile hi"><span class="stat-num" data-countup="94" data-suffix="%">0</span><span class="stat-label">Accuracy rate</span></div>
+        <div class="stat-tile"><span class="stat-num" data-countup="3.2" data-decimals="1" data-suffix="s">0</span><span class="stat-label">Avg analysis</span></div>
+        <div class="stat-tile"><span class="stat-num" data-countup="6">0</span><span class="stat-label">Model players</span></div>
       </div>
     </div>
   </section>
 
-  <footer>
-    <div class="wrap"><p>TennisAC © 2026 — Built for players who want to get better.</p></div>
+  <!-- PROFILE -->
+  <section class="profile-section">
+    <div class="rev">
+      <p class="eyebrow">Your profile</p>
+      <div class="chip-row">
+        <div class="chip"><span class="k">Player</span><span class="v">{{ user.name }}</span></div>
+        {% if user.utr %}<div class="chip chip-solid"><span class="k">UTR</span><span class="v">{{ user.utr }}</span></div>{% endif %}
+        {% if user.play_like %}<div class="chip"><span class="k">Model</span><span class="v">{{ user.play_like }}</span></div>{% endif %}
+        {% if user.backhand_style %}<div class="chip"><span class="k">Backhand</span><span class="v">{{ user.backhand_style }}</span></div>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section dark-band">
+    <div class="grain"><svg width="100%" height="100%"><filter id="g-dark"><feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#g-dark)"/></svg></div>
+    <div class="hero-orb" style="width:460px;height:460px;top:-18%;left:-6%;background:rgba(255,80,0,.12);filter:blur(220px);animation:float-b 12s ease-in-out infinite"></div>
+    <div class="how-bgword">COACH</div>
+
+    <div class="how-inner rev">
+      <p class="eyebrow on-dark">How it works</p>
+      <h2 class="how-title">Three steps.<br><span class="serif-em" style="color:#FF6030">Instant coaching.</span></h2>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-top"><span class="step-num">01</span><div class="step-icon">↑</div></div>
+          <h3 class="step-title">Upload</h3>
+          <p class="step-desc">Drop a short clip — your serve, a groundstroke, or an entire point. Side or rear angle. Under 30 seconds.</p>
+          <div class="step-bar-bg"><div class="step-bar-fill" style="width:72%"></div></div>
+        </div>
+        <div class="step-card">
+          <div class="step-top"><span class="step-num">02</span><div class="step-icon">◎</div></div>
+          <h3 class="step-title">Analyse</h3>
+          <p class="step-desc">Our AI maps every joint, swing path, and footstep frame by frame — then compares them to your chosen model player.</p>
+          <div class="step-bar-bg"><div class="step-bar-fill" style="width:91%"></div></div>
+        </div>
+        <div class="step-card">
+          <div class="step-top"><span class="step-num">03</span><div class="step-icon">↗</div></div>
+          <h3 class="step-title">Improve</h3>
+          <p class="step-desc">Receive precision scores, a breakdown of each mechanic, and targeted drills built to your UTR and style of play.</p>
+          <div class="step-bar-bg"><div class="step-bar-fill" style="width:88%"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee-band dark">
+    <div class="marquee-track">
+      {% for _ in range(16) %}<span>READ YOUR GAME · AI POWERED ·</span>{% endfor %}
+      {% for _ in range(16) %}<span>READ YOUR GAME · AI POWERED ·</span>{% endfor %}
+    </div>
+  </div>
+
+  <!-- ANALYSE -->
+  <section id="analyze" class="analyse-section">
+    <div class="analyse-head rev">
+      <div class="analyse-head-left">
+        <span class="big-num">01</span>
+        <h2>Analyse your game</h2>
+      </div>
+      <span class="analyse-hint">Side or rear angle · ≤ 30s clips</span>
+    </div>
+
+    <form action="/analyze" method="POST" enctype="multipart/form-data" id="uploadForm">
+      <p class="select-label rev">Select what to analyse</p>
+      <div class="shot-grid rev d1">
+        <label class="shot-option" data-accent="serve">
+          <input type="radio" name="shot_type" value="serve" checked />
+          <span class="shot-card">
+            <span class="shot-watermark">01</span>
+            <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="shot-name">Serve</span>
+            <span class="shot-sub">First &amp; second serve</span>
+          </span>
+        </label>
+        <label class="shot-option" data-accent="forehand">
+          <input type="radio" name="shot_type" value="forehand" />
+          <span class="shot-card">
+            <span class="shot-watermark">02</span>
+            <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="shot-name">Forehand</span>
+            <span class="shot-sub">Grip, swing &amp; follow-thru</span>
+          </span>
+        </label>
+        <label class="shot-option" data-accent="backhand">
+          <input type="radio" name="shot_type" value="backhand" />
+          <span class="shot-card">
+            <span class="shot-watermark">03</span>
+            <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="shot-name">Backhand</span>
+            <span class="shot-sub">One or two-handed</span>
+          </span>
+        </label>
+        <label class="shot-option" data-accent="rally">
+          <input type="radio" name="shot_type" value="rally" />
+          <span class="shot-card">
+            <span class="shot-watermark">04</span>
+            <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="shot-name">Rally</span>
+            <span class="shot-sub">Movement &amp; positioning</span>
+          </span>
+        </label>
+        <a href="/point-play" class="pp-card">
+          <span class="shot-watermark">05</span>
+          <span class="shot-name">Point Play</span>
+          <span class="shot-sub">Full point breakdown</span>
+          <span class="pp-arrow">Analyse →</span>
+        </a>
+      </div>
+
+      <p class="select-label rev d1">Upload your video</p>
+      <div class="rev d2">
+        <div class="dropzone" id="dropzone">
+          <div class="dz-inner" id="dzInner">
+            <div class="dz-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+            <p class="dz-text">Drag &amp; drop your video here</p>
+            <p class="dz-sub">or click to browse · MP4 · MOV · AVI · max 30s</p>
+          </div>
+          <input type="file" name="video" id="videoInput" accept=".mp4,.mov,.avi,.mkv" required />
+        </div>
+        <p class="tip">Film from the side or slightly behind for the most accurate read.</p>
+
+        <button type="submit" class="btn-cta full" id="submitBtn" style="margin-top:22px">
+          <span id="btnText">Analyse My Shot →</span>
+          <span id="btnLoader" class="hidden">Analysing…</span>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC · AI-powered coaching</p>
   </footer>
 
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
