@@ -143,6 +143,7 @@
         <div class="nav-dot"></div>
       </div>
       <a href="/progress" class="nav-link">Progress</a>
+      {% if is_admin %}<a href="/admin/users" class="nav-link">Admin</a>{% endif %}
       <a href="/profile/edit" class="nav-link">Edit Profile</a>
       <a href="/logout" class="nav-link">Log Out</a>
     </div>

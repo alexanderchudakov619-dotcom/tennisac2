@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Users</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,48px)}
+    .results-hero{text-align:center;padding:64px 0 40px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7.5vw,76px);letter-spacing:-.02em;line-height:.92;margin:0 0 14px}
+    .hero-desc{color:var(--muted);font-size:16px;max-width:480px;margin:0 auto;line-height:1.65}
+
+    .table-section{padding:0 clamp(20px,5vw,48px) 90px;max-width:1180px;margin:0 auto}
+    .table-card{background:#fff;border:1px solid var(--border-soft);border-radius:18px;overflow:hidden;
+      box-shadow:0 16px 36px -24px rgba(120,50,0,.3)}
+    .table-scroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:820px}
+    th,td{text-align:left;padding:16px 20px;white-space:nowrap}
+    thead th{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--muted-3);border-bottom:1px solid var(--border-soft);background:rgba(255,80,0,.03)}
+    tbody tr{border-bottom:1px solid var(--border-soft)}
+    tbody tr:last-child{border-bottom:none}
+    tbody tr:hover{background:rgba(255,80,0,.03)}
+    .cell-name{font-weight:600;color:var(--ink)}
+    .cell-email{color:var(--muted);font-size:13.5px}
+    .cell-muted{color:var(--muted-3);font-size:13.5px}
+    .count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 8px;
+      border-radius:999px;background:var(--good-bg);color:var(--good);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px}
+    .count-pill.zero{background:var(--border-soft);color:var(--muted-3)}
+
+    .empty-card{padding:44px;text-align:center}
+    .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Admin</div>
+    </div>
+    <div class="nav-right">
+        <div class="nav-user-chip">
+          <div class="nav-avatar">{{ (user['name'] or '?')[0]|upper }}</div>
+          <span class="name">{{ user['name'] }}</span>
+        </div>
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Admin Only</p>
+        <h1 class="results-title">Users</h1>
+        <p class="hero-desc">Everyone who's signed up for TennisAC, and how active they've been.</p>
+    </div>
+</section>
+
+<section class="table-section">
+    {% if users %}
+        <div class="table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Signed Up</th>
+                            <th>UTR</th>
+                            <th>Player Type</th>
+                            <th>Dominant Hand</th>
+                            <th>Analyses</th>
+                            <th>Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td class="cell-name">{{ u['name'] }}</td>
+                            <td class="cell-email">{{ u['email'] }}</td>
+                            <td class="cell-muted">{{ u['created_at'] }}</td>
+                            <td class="cell-muted">{{ u['utr'] or '—' }}</td>
+                            <td class="cell-muted">{{ u['player_type'] or '—' }}</td>
+                            <td class="cell-muted">{{ u['dominant_hand'] or '—' }}</td>
+                            <td><span class="count-pill{{ '' if u['analysis_count'] else ' zero' }}">{{ u['analysis_count'] }}</span></td>
+                            <td class="cell-muted">{{ u['last_active'] or 'Never' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="panel empty-card">
+            <h2>No users yet</h2>
+            <p class="hero-desc">Once people sign up, they'll show up here.</p>
+        </div>
+    {% endif %}
+</section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

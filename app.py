@@ -15,6 +15,9 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
 
+# Only this account can view the /admin/users page.
+ADMIN_EMAIL = 'alexanderchudakov619@gmail.com'
+
 def get_db():
     db = sqlite3.connect('tennisac.db')
     db.row_factory = sqlite3.Row
@@ -101,7 +104,7 @@ def index():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
-    return render_template('index.html', user=user)
+    return render_template('index.html', user=user, is_admin=(user['email'] == ADMIN_EMAIL))
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -338,6 +341,28 @@ def progress():
         history_with_scores.append(row)
 
     return render_template('progress.html', user=user, history=history_with_scores)
+
+@app.route('/admin/users')
+def admin_users():
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+
+    db = get_db()
+    users = db.execute(
+        '''
+        SELECT u.*,
+               COUNT(a.id) AS analysis_count,
+               MAX(a.created_at) AS last_active
+        FROM users u
+        LEFT JOIN analysis_history a ON a.user_id = u.id
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+        '''
+    ).fetchall()
+    db.close()
+
+    return render_template('admin_users.html', user=user, users=users)
 
 if __name__ == '__main__':
     app.run(debug=True)
