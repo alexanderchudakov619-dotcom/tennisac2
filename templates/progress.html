@@ -16,15 +16,34 @@
     .hero-desc{color:var(--muted);font-size:16px;max-width:480px;margin:0 auto;line-height:1.65}
 
     .metrics-section{padding:0 clamp(20px,5vw,48px) 90px;max-width:1000px;margin:0 auto}
-    .progress-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:8px}
-    .progress-card{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:26px;min-height:170px;
+    .progress-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:8px;align-items:start}
+    .progress-card{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:26px;
       box-shadow:0 16px 36px -24px rgba(120,50,0,.3);transition:transform .18s ease,box-shadow .18s ease}
     .progress-card:hover{transform:translateY(-3px)}
     .metric-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
     .metric-name{font-size:14px;font-weight:600;color:var(--ink)}
-    .metric-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;background:var(--good-bg);color:var(--good)}
+    .metric-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.06em}
+    .label-excellent{background:var(--good-bg);color:var(--good)}
+    .label-good{background:var(--good-bg);color:var(--good)}
+    .label-needs-work{background:var(--ok-bg);color:var(--ok)}
+    .label-poor{background:var(--bad-bg);color:var(--bad)}
+    .label-na{background:var(--border-soft);color:var(--muted-3)}
     .progress-score{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;color:var(--accent);line-height:1;margin:14px 0 8px}
     .metric-score{font-size:12.5px;color:var(--muted-3)}
+
+    .breakdown-toggle{display:flex;align-items:center;gap:6px;margin-top:16px;background:none;border:none;padding:0;
+      font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--accent);cursor:pointer}
+    .breakdown-toggle svg{transition:transform .2s ease}
+    .progress-card.open .breakdown-toggle svg{transform:rotate(180deg)}
+    .breakdown-detail{max-height:0;overflow:hidden;transition:max-height .3s ease}
+    .progress-card.open .breakdown-detail{max-height:900px}
+    .breakdown-list{margin-top:18px;padding-top:18px;border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:14px}
+    .breakdown-row .metric-header{margin-bottom:8px}
+    .breakdown-row .metric-name{font-size:13px}
+    .metric-bar-bg{height:6px;background:rgba(255,80,0,.08);border-radius:99px;overflow:hidden}
+    .metric-bar-fill{height:100%;border-radius:99px}
+    .breakdown-empty{color:var(--muted-3);font-size:12.5px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-soft)}
 
     .empty-card{padding:44px;text-align:center}
     .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
@@ -62,11 +81,39 @@
                 <div class="progress-card">
                     <div class="metric-header">
                         <span class="metric-name">{{ item['shot_type']|title }}</span>
-                        <span class="metric-label">{{ item['overall_label'] }}</span>
+                        <span class="metric-label label-{{ (item['overall_label'] or 'na') | lower | replace(' ', '-') | replace('/', '') }}">{{ item['overall_label'] }}</span>
                     </div>
 
                     <div class="progress-score">{{ item['overall_score'] }}</div>
                     <span class="metric-score">{{ item['created_at'] }}</span>
+
+                    {% if item['scores'] %}
+                        <button type="button" class="breakdown-toggle" onclick="this.closest('.progress-card').classList.toggle('open')">
+                            <span>View metric breakdown</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="breakdown-detail">
+                            <div class="breakdown-list">
+                                {% for name, data in item['scores'].items() %}
+                                <div class="breakdown-row">
+                                    <div class="metric-header">
+                                        <span class="metric-name">{{ name }}</span>
+                                        <span class="metric-label label-{{ data.label | lower | replace(' ', '-') | replace('/', '') }}">{{ data.label }}</span>
+                                    </div>
+                                    <div class="metric-bar-bg">
+                                        <div
+                                            class="metric-bar-fill"
+                                            style="width: {{ data.score or 0 }}%; background: {{ '#5B9B23' if (data.score or 0) >= 80 else ('#C8811E' if (data.score or 0) >= 60 else '#C8362B') }}"
+                                        ></div>
+                                    </div>
+                                    <span class="metric-score">{{ data.score or 'N/A' }} / 100</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="breakdown-empty">No saved metric breakdown for this session.</p>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>

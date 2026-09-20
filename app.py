@@ -3,6 +3,7 @@ import os
 import uuid
 import sqlite3
 import hashlib
+import json
 from analysis.video_processor import process_video
 from analysis.pose_analysis import generate_feedback
 from analysis.point_analyzer import analyze_point_with_ai
@@ -48,10 +49,18 @@ def init_db():
             shot_type TEXT NOT NULL,
             overall_score REAL,
             overall_label TEXT,
+            scores_json TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
+
+    # scores_json holds the per-metric breakdown (Contact Height, Arm Extension, etc.)
+    # for each saved analysis. Databases created before this column existed need it
+    # added on top of their existing table.
+    existing_cols = [row['name'] for row in db.execute('PRAGMA table_info(analysis_history)').fetchall()]
+    if 'scores_json' not in existing_cols:
+        db.execute('ALTER TABLE analysis_history ADD COLUMN scores_json TEXT')
 
     db.commit()
     db.close()
@@ -238,14 +247,15 @@ def analyze():
     db.execute(
         '''
         INSERT INTO analysis_history
-        (user_id, shot_type, overall_score, overall_label)
-        VALUES (?, ?, ?, ?)
+        (user_id, shot_type, overall_score, overall_label, scores_json)
+        VALUES (?, ?, ?, ?, ?)
         ''',
         (
             user['id'],
             shot_type,
             feedback.get('overall_score'),
-            feedback.get('overall_label')
+            feedback.get('overall_label'),
+            json.dumps(feedback.get('scores', {}))
         )
     )
     db.commit()
@@ -316,7 +326,18 @@ def progress():
     ).fetchall()
     db.close()
 
-    return render_template('progress.html', user=user, history=history)
+    # Attach each session's saved metric breakdown (Contact Height, Arm Extension, etc.)
+    # so the Progress page can expand a past analysis and show it, not just the overall score.
+    history_with_scores = []
+    for item in history:
+        row = dict(item)
+        try:
+            row['scores'] = json.loads(row['scores_json']) if row['scores_json'] else {}
+        except (TypeError, ValueError):
+            row['scores'] = {}
+        history_with_scores.append(row)
+
+    return render_template('progress.html', user=user, history=history_with_scores)
 
 if __name__ == '__main__':
     app.run(debug=True)
