@@ -19,8 +19,17 @@ ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
 ADMIN_EMAIL = 'alexanderchudakov619@gmail.com'
 
 def get_db():
-    db = sqlite3.connect('tennisac.db')
+    # timeout: wait up to 10s for a lock instead of failing immediately when
+    # another request is mid-write (matters once more than one worker/thread
+    # is handling requests at the same time).
+    db = sqlite3.connect('tennisac.db', timeout=10)
     db.row_factory = sqlite3.Row
+    # WAL mode lets reads proceed while a write is in progress, instead of
+    # every connection blocking behind a single writer. This is the biggest
+    # lever available for handling concurrent users without switching off
+    # SQLite entirely.
+    db.execute('PRAGMA journal_mode=WAL')
+    db.execute('PRAGMA busy_timeout=10000')
     return db
 
 def init_db():
@@ -64,6 +73,11 @@ def init_db():
     existing_cols = [row['name'] for row in db.execute('PRAGMA table_info(analysis_history)').fetchall()]
     if 'scores_json' not in existing_cols:
         db.execute('ALTER TABLE analysis_history ADD COLUMN scores_json TEXT')
+
+    # Progress and Admin both filter analysis_history by user_id and sort by
+    # created_at — without an index, that's a full table scan on every load,
+    # and it gets slower as more users generate more history.
+    db.execute('CREATE INDEX IF NOT EXISTS idx_analysis_history_user ON analysis_history (user_id, created_at DESC)')
 
     db.commit()
     db.close()
@@ -229,7 +243,14 @@ def analyze():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
     file.save(filepath)
 
-    metrics = process_video(filepath, shot_type)
+    try:
+        metrics = process_video(filepath, shot_type)
+    finally:
+        # Always clean up the upload, even if processing raises — otherwise a
+        # bad clip (or any error) leaves the file behind forever, and under
+        # concurrent traffic the uploads folder can fill the disk and take
+        # the whole app down for everyone.
+        os.remove(filepath)
 
     profile = {
         'name': user['name'],
@@ -264,8 +285,6 @@ def analyze():
     db.commit()
     db.close()
 
-    os.remove(filepath)
-
     return render_template(
         'results.html',
         metrics=metrics,
@@ -292,8 +311,11 @@ def point_play():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
         file.save(filepath)
         # Get motion data from video
-        motion_metrics = process_video(filepath, 'rally')
-        os.remove(filepath)
+        try:
+            motion_metrics = process_video(filepath, 'rally')
+        finally:
+            # Always clean up, even if processing raises (see /analyze).
+            os.remove(filepath)
         # Build profile
         profile = {
             'name': user['name'], 'play_like': user['play_like'],
