@@ -7,6 +7,8 @@ import json
 from analysis.video_processor import process_video
 from analysis.pose_analysis import generate_feedback
 from analysis.point_analyzer import analyze_point_with_ai
+from analysis.ball_physics import analyze_point_ball_physics
+from analysis.trajectory_viz import render_trajectory_svg
 
 app = Flask(__name__)
 app.secret_key = 'tennisac_secret_2025'
@@ -310,9 +312,12 @@ def point_play():
         unique_name = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
         file.save(filepath)
-        # Get motion data from video
+        # Get motion data from video, plus real per-shot ball physics
+        # (speed, depth, net clearance, spin, heaviness) tracked straight
+        # off the pixels — both need the file before it's cleaned up.
         try:
             motion_metrics = process_video(filepath, 'rally')
+            ball_physics = analyze_point_ball_physics(filepath)
         finally:
             # Always clean up, even if processing raises (see /analyze).
             os.remove(filepath)
@@ -325,10 +330,13 @@ def point_play():
             'point_length': user['point_length'], 'shot_order': user['shot_order'],
         }
         # Run AI analysis
-        analysis = analyze_point_with_ai(motion_metrics, point_result, point_context, profile)
+        analysis = analyze_point_with_ai(motion_metrics, point_result, point_context, profile, ball_physics=ball_physics)
+        trajectory_svg = render_trajectory_svg(ball_physics)
         return render_template('point_play_results.html',
                                analysis=analysis,
                                point_result=point_result,
+                               ball_physics=ball_physics,
+                               trajectory_svg=trajectory_svg,
                                user=user)
     return render_template('point_play.html', user=user)
 

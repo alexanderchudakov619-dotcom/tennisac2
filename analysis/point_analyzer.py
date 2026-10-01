@@ -15,7 +15,41 @@ import urllib.error
 CLAUDE_MODEL = "claude-haiku-4-5"
 
 
-def analyze_point_with_ai(motion_metrics, point_result, point_context, profile):
+def _describe_ball_physics(ball_physics):
+    """Turns the tracked per-shot physics into plain-language lines for
+    the prompt. Only ever states a number when its 'available' flag is
+    True — there is no fallback guess here, because a wrong number stated
+    as fact is worse than no number at all."""
+    if not ball_physics or not ball_physics.get('shots'):
+        return ""
+
+    lines = []
+    for i, shot in enumerate(ball_physics['shots'], start=1):
+        parts = []
+        speed = shot.get('speed_mph', {})
+        if speed.get('available'):
+            parts.append(f"speed {speed['value']} mph")
+        depth = shot.get('depth', {})
+        if depth.get('available'):
+            parts.append(f"landed {depth['label'].lower()} ({depth['from_baseline_ft']} ft from the baseline)")
+        height = shot.get('height', {})
+        if height.get('available'):
+            parts.append(f"cleared the net by {height['net_clearance_ft']} ft")
+        spin = shot.get('spin', {})
+        if spin.get('available'):
+            parts.append(f"{spin['type'].lower()} spin")
+        heaviness = shot.get('heaviness', {})
+        if heaviness.get('available'):
+            parts.append(f"heaviness index {heaviness['score']}/100")
+        if parts:
+            lines.append(f"Shot {i}: " + ", ".join(parts) + ".")
+
+    if not lines:
+        return "Ball tracking ran on this clip but wasn't confident enough to report per-shot numbers — don't invent any."
+    return "Tracked ball physics (measured from the video, not a guess):\n" + "\n".join(lines)
+
+
+def analyze_point_with_ai(motion_metrics, point_result, point_context, profile, ball_physics=None):
     """
     Sends point data + player profile to Claude and gets back
     structured strategic analysis.
@@ -66,6 +100,8 @@ Video motion data:
         if point_context else "No additional context provided."
     )
 
+    ball_physics_summary = _describe_ball_physics(ball_physics)
+
     prompt = f"""You are TennisAC, an expert AI tennis coach analyzing a tennis point.
 
 PLAYER PROFILE:
@@ -77,8 +113,12 @@ POINT RESULT: The player {point_result.upper()} this point.
 
 {motion_summary}
 
+{ball_physics_summary}
+
 Note: the motion data above is rough (frame-based motion only, not full body tracking),
-so lean mostly on the point result and the player's own description for your tactical read.
+so lean mostly on the point result, the player's own description, and the tracked ball
+physics (when present) for your tactical read. Only reference a speed/depth/height/spin/
+heaviness number if it's explicitly given above — never invent one that isn't there.
 
 Based on this information, provide a detailed strategic point analysis.
 You MUST respond with ONLY a valid JSON object in exactly this format, no other text:
