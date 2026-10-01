@@ -317,7 +317,7 @@ def point_play():
         # off the pixels — both need the file before it's cleaned up.
         try:
             motion_metrics = process_video(filepath, 'rally')
-            ball_physics = analyze_point_ball_physics(filepath)
+            ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
         finally:
             # Always clean up, even if processing raises (see /analyze).
             os.remove(filepath)

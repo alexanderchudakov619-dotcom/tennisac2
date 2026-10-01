@@ -16,6 +16,8 @@ import math
 import cv2
 import numpy as np
 
+from analysis.swing_analysis import track_pose, find_contacts, analyze_swing
+
 
 # ---------------------------------------------------------------------
 # Ball detection
@@ -158,7 +160,7 @@ def find_court_homography(frame):
         return {'H': None, 'confidence': 0.0}
 
     horiz, vert = [], []
-    for l in lines[:, 0]:
+    for l in lines.reshape(-1, 4):  # OpenCV 4 returns (N,1,4), OpenCV 5 (N,4)
         angle, length = _line_angle_length(l)
         if abs(angle) < 18 or abs(abs(angle) - 180) < 18:
             horiz.append((l, length))
@@ -289,7 +291,7 @@ def find_net_line(frame, H):
     if lines is None:
         return None
 
-    best = max(lines[:, 0], key=lambda l: math.hypot(l[2] - l[0], l[3] - l[1]))
+    best = max(lines.reshape(-1, 4), key=lambda l: math.hypot(l[2] - l[0], l[3] - l[1]))
     x1, y1, x2, y2 = best
     y1 += top
     y2 += top
@@ -367,49 +369,89 @@ def _fit_line(ts, ys):
     return float(slope)
 
 
-def _classify_spin(segment, next_segment):
-    """Reads spin off the boundary between this shot's flight (tail,
-    descending into the bounce) and the next shot's opening trajectory
-    (head, right after the bounce) — the bounce kick is where topspin,
-    slice, and flat shots visibly diverge in flight, independent of
-    anything about the swing that produced them.
+def _bounce_spin_score(segment, next_segment):
+    """Spin evidence from the bounce kick: the boundary between this
+    shot's flight (tail, descending into the bounce) and the next shot's
+    opening trajectory (head, right after the bounce) — where topspin,
+    slice, and flat shots visibly diverge. Returns a score in [-1, 1]
+    (+ = topspin, - = slice), or None when there's no clean bounce.
     """
     if not next_segment or len(segment) < 3 or len(next_segment) < 3:
-        return {'available': False}
+        return None
 
     k = min(5, len(segment) - 1, len(next_segment) - 1)
     pre = segment[-(k + 1):]
     post = next_segment[:k + 1]
-    pre_ts = [d['t'] for _, d in pre]
-    pre_ys = [d['y'] for _, d in pre]
-    post_ts = [d['t'] for _, d in post]
-    post_ys = [d['y'] for _, d in post]
-
-    pre_slope = _fit_line(pre_ts, pre_ys)    # > 0: falling into the bounce
-    post_slope = _fit_line(post_ts, post_ys)  # < 0: rising back up after it
+    pre_slope = _fit_line([d['t'] for _, d in pre], [d['y'] for _, d in pre])     # > 0: falling into the bounce
+    post_slope = _fit_line([d['t'] for _, d in post], [d['y'] for _, d in post])  # < 0: rising back up after it
 
     if pre_slope <= 0 or post_slope >= 0:
         # Doesn't look like a clean bounce in the tracked data — don't
         # force a classification onto noise.
+        return None
+
+    # A rise ratio of 0.6+ reads as topspin and 0.25 or less as slice;
+    # those map to +/-SPIN_THRESHOLD so bounce-only reads stay unchanged.
+    rise_ratio = -post_slope / pre_slope
+    return float(np.clip((rise_ratio - 0.425) / 0.175 * SPIN_THRESHOLD, -1.0, 1.0))
+
+
+SPIN_THRESHOLD = 0.3
+
+
+def _classify_spin(bounce_score, swing=None):
+    """Fuses bounce-kick evidence with swing evidence (path, rise,
+    forearm roll — see swing_analysis.py) into one spin call. Either
+    source alone is enough; when both are present they're weighted, and
+    disagreement lowers the stated confidence instead of being hidden.
+    """
+    swing_score = swing.get('spin_score') if swing else None
+    sources = []
+    if bounce_score is not None:
+        sources.append(('bounce', bounce_score, 1.0))
+    if swing_score is not None:
+        # On serves the arm always travels up, so the swing says much
+        # less about spin than it does on groundstrokes.
+        weight = swing['quality'] * (0.4 if swing.get('shot_type') == 'Serve / Overhead' else 1.0)
+        sources.append(('swing', swing_score, weight))
+    if not sources:
         return {'available': False}
 
-    rise_ratio = -post_slope / pre_slope
-    if rise_ratio >= 0.6:
-        return {'available': True, 'type': 'Topspin', 'confidence': round(min(0.85, 0.5 + rise_ratio * 0.25), 2),
-                'note': "Estimated from how sharply the ball kicked up off the bounce, not the swing."}
-    if rise_ratio <= 0.25:
-        return {'available': True, 'type': 'Slice / Backspin', 'confidence': round(min(0.8, 0.5 + (0.25 - rise_ratio)), 2),
-                'note': "Estimated from how little the ball rose off the bounce, not the swing."}
-    return {'available': True, 'type': 'Flat', 'confidence': 0.55,
-            'note': "Estimated from a moderate bounce kick, not the swing."}
+    total_w = sum(w for _, _, w in sources)
+    score = sum(sc * w for _, sc, w in sources) / total_w
+    if score >= SPIN_THRESHOLD:
+        spin_type = 'Topspin'
+    elif score <= -SPIN_THRESHOLD:
+        spin_type = 'Slice / Backspin'
+    else:
+        spin_type = 'Flat'
+
+    confidence = 0.5 + min(0.25, abs(score) * 0.3)
+    names = [n for n, _, _ in sources]
+    if len(sources) == 2:
+        (_, a, _), (_, b, _) = sources
+        if (a >= SPIN_THRESHOLD and b <= -SPIN_THRESHOLD) or (a <= -SPIN_THRESHOLD and b >= SPIN_THRESHOLD):
+            confidence = min(confidence, 0.5)
+            note = "Swing and bounce disagreed on this one, so treat the spin call as a rough read."
+        else:
+            confidence += 0.1
+            note = "Read from both the swing (path, rise, forearm roll) and how the ball kicked off the bounce."
+    elif names == ['swing']:
+        note = "Read from the swing (path, rise, forearm roll) — the bounce wasn't tracked cleanly."
+    else:
+        note = "Read from how the ball kicked off the bounce — the swing wasn't visible for this shot."
+
+    return {'available': True, 'type': spin_type, 'confidence': round(min(0.9, confidence), 2),
+            'score': round(score, 2), 'sources': names, 'note': note}
 
 
-def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None):
+def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None, swing=None):
     """Derives speed/depth/height/spin/heaviness for one shot segment.
 
     `segment` is a list of (frame_index, detection) tuples as produced by
     segment_shots(); `next_segment` (optional) is the shot that follows
-    it, used only to read the bounce kick for spin. Every field in the
+    it, used only to read the bounce kick for spin; `swing` (optional) is
+    the near player's swing for this shot from swing_analysis.py. Every field in the
     returned dict carries an 'available' flag — render/report a number
     only when it's True.
     """
@@ -419,9 +461,11 @@ def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None)
         'height': {'available': False},
         'spin': {'available': False},
         'heaviness': {'available': False},
+        'swing': swing,  # None when the near player didn't hit this shot
         'trajectory_ft': None,  # [[x_ft, y_ft], ...] for drawing, when calibrated
     }
     if len(segment) < 4:
+        result['spin'] = _classify_spin(None, swing)
         return result
 
     dets = [d for _, d in segment]
@@ -429,7 +473,7 @@ def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None)
     xs_px = [d['x'] for d in dets]
     ys_px = [d['y'] for d in dets]
 
-    result['spin'] = _classify_spin(segment, next_segment)
+    result['spin'] = _classify_spin(_bounce_spin_score(segment, next_segment), swing)
 
     # Everything below needs real-world units, which needs a trustworthy
     # court calibration for this frame.
@@ -527,10 +571,11 @@ def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None)
     return result
 
 
-def analyze_point_ball_physics(video_path, max_seconds=12.0):
-    """Top-level entry point: tracks the ball, calibrates the court off
-    the first frame, segments the rally into shots, and returns per-shot
-    physics. Safe to call on any clip — degrades to empty/unavailable
+def analyze_point_ball_physics(video_path, max_seconds=12.0, dominant_hand=None):
+    """Top-level entry point: tracks the ball and the near player's pose,
+    calibrates the court off the first frame, segments the rally into
+    shots, and returns per-shot physics (with the swing read for every
+    shot the near player hit). Safe to call on any clip — degrades to empty/unavailable
     results rather than raising when tracking or calibration fails.
     """
     track = track_ball(video_path, max_seconds=max_seconds)
@@ -551,11 +596,28 @@ def analyze_point_ball_physics(video_path, max_seconds=12.0):
     tracking_rate = found_frames / len(detections) if detections else 0.0
 
     shots = []
+    pose_tracked = False
     if tracking_rate >= 0.4:
         segments = segment_shots(detections, fps)
+
+        # Each bounce-to-bounce segment holds at most one hit; match the
+        # near player's contacts to the segment they fall inside.
+        swings = {}
+        poses = track_pose(video_path, max_seconds=max_seconds)
+        if poses:
+            pose_tracked = sum(1 for p in poses if p is not None) >= len(poses) * 0.3
+        if pose_tracked:
+            for f, wrist_idx in find_contacts(detections, poses, fps):
+                for i, segment in enumerate(segments):
+                    if segment[0][0] <= f <= segment[-1][0] and i not in swings:
+                        swings[i] = analyze_swing(poses, detections, f, wrist_idx, fps,
+                                                  H=calibration['H'], dominant_hand=dominant_hand)
+                        break
+
         for i, segment in enumerate(segments):
             next_segment = segments[i + 1] if i + 1 < len(segments) else None
-            metrics = compute_shot_metrics(segment, fps, H=calibration['H'], net_line=net_line, next_segment=next_segment)
+            metrics = compute_shot_metrics(segment, fps, H=calibration['H'], net_line=net_line,
+                                           next_segment=next_segment, swing=swings.get(i))
             shots.append(metrics)
 
     return {
@@ -564,4 +626,5 @@ def analyze_point_ball_physics(video_path, max_seconds=12.0):
         'calibration_confidence': round(calibration['confidence'], 2),
         'calibrated': calibration['H'] is not None,
         'net_detected': net_line is not None,
+        'pose_tracked': pose_tracked,
     }

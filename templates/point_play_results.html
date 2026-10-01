@@ -108,12 +108,24 @@
         {% for shot in ball_physics.shots %}
           {% if shot.speed_mph.available or shot.depth.available or shot.height.available or shot.spin.available or shot.heaviness.available %}
           <div class="physics-card">
-            <div class="physics-shot-label">Shot {{ loop.index }}</div>
+            <div class="physics-shot-label">Shot {{ loop.index }}{% if shot.swing %} · Your {{ shot.swing.shot_type }}{% if shot.swing.two_handed %} (two-handed){% endif %}{% endif %}</div>
             {% if shot.speed_mph.available %}
             <div class="physics-stat"><span class="physics-stat-label">Speed</span><span class="physics-stat-value">{{ shot.speed_mph.value }} mph</span></div>
             {% endif %}
             {% if shot.spin.available %}
-            <div class="physics-stat"><span class="physics-stat-label">Spin</span><span class="physics-stat-value">{{ shot.spin.type }}</span></div>
+            <div class="physics-stat" title="{{ shot.spin.note }}"><span class="physics-stat-label">Spin</span><span class="physics-stat-value">{{ shot.spin.type }}</span></div>
+            {% endif %}
+            {% if shot.swing %}
+            {% if shot.swing.path.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Swing path</span><span class="physics-stat-value">{{ shot.swing.path.label }} ({{ shot.swing.path.angle_deg }}°)</span></div>
+            {% endif %}
+            {% if shot.swing.roll.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Forearm roll</span><span class="physics-stat-value">{{ shot.swing.roll.label }}</span></div>
+            {% endif %}
+            {% if shot.swing.hand_speed_mph.available %}
+            <div class="physics-stat" title="{{ shot.swing.hand_speed_mph.note }}"><span class="physics-stat-label">Hand speed</span><span class="physics-stat-value">{{ shot.swing.hand_speed_mph.value }} mph</span></div>
+            {% endif %}
+            <div class="physics-stat"><span class="physics-stat-label">Contact</span><span class="physics-stat-value">{{ shot.swing.contact_height }}</span></div>
             {% endif %}
             {% if shot.depth.available %}
             <div class="physics-stat"><span class="physics-stat-label">Depth</span><span class="physics-stat-value">{{ shot.depth.label }} ({{ shot.depth.from_baseline_ft }} ft from baseline)</span></div>
@@ -128,6 +140,9 @@
           {% endif %}
         {% endfor %}
       </div>
+      {% if not ball_physics.pose_tracked %}
+      <p class="physics-note" style="margin-top:14px">Couldn't see your body clearly enough in this clip to read your swing, so spin comes from the bounce only. For swing-based spin, film from behind the baseline with your whole body in frame.</p>
+      {% endif %}
       {% if not ball_physics.calibrated %}
       <p class="physics-note" style="margin-top:14px">Couldn't get a confident read on the court lines in this clip, so exact numbers aren't shown for it — ball physics works best filmed from behind the baseline with the full court in view.</p>
       {% endif %}

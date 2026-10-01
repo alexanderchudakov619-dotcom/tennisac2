@@ -37,7 +37,18 @@ def _describe_ball_physics(ball_physics):
             parts.append(f"cleared the net by {height['net_clearance_ft']} ft")
         spin = shot.get('spin', {})
         if spin.get('available'):
-            parts.append(f"{spin['type'].lower()} spin")
+            parts.append(f"{spin['type'].lower()} spin (from {' + '.join(spin['sources'])})")
+        swing = shot.get('swing')
+        if swing:
+            swing_parts = [f"player's {swing['shot_type'].lower()}"]
+            if swing['path']['available']:
+                swing_parts.append(f"swing path {swing['path']['label'].lower()} ({swing['path']['angle_deg']} deg)")
+            if swing['roll']['available']:
+                swing_parts.append(f"{swing['roll']['label'].lower()} forearm roll")
+            if swing['hand_speed_mph']['available']:
+                swing_parts.append(f"hand speed {swing['hand_speed_mph']['value']} mph")
+            swing_parts.append(f"contact {swing['contact_height'].lower()}")
+            parts.insert(0, ", ".join(swing_parts))
         heaviness = shot.get('heaviness', {})
         if heaviness.get('available'):
             parts.append(f"heaviness index {heaviness['score']}/100")
