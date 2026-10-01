@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TennisAC — {{ card.shot_type | capitalize }} {{ card.overall_score | int if card.overall_score is not none else '—' }}/100</title>
   <meta property="og:title" content="{{ card.shot_type | capitalize }}: {{ card.overall_score | int if card.overall_score is not none else '—' }}/100 on TennisAC" />
-  <meta property="og:description" content="AI breakdown of a real {{ card.shot_type }}. What does yours score? Analyze one shot free — no account." />
+  <meta property="og:description" content="AI breakdown of a real {{ card.shot_type }}. What does yours score? Analyze yours free — no account needed." />
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -102,8 +102,8 @@
       <p>Upload a clip and see your breakdown.</p>
       <a href="/" class="btn-cta">Analyze a shot →</a>
       {% else %}
-      <p>Upload one 10-second clip. No account, no card.</p>
-      <a href="/try" class="btn-cta">Analyze one shot free →</a>
+      <p>Upload a 10-second clip. Free, no account needed.</p>
+      <a href="/try" class="btn-cta">Analyze your shot free →</a>
       {% endif %}
     </div>
   </section>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — {{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .err-wrap{max-width:520px;margin:0 auto;padding:90px clamp(16px,5vw,32px) 80px;text-align:center}
+    .err-wrap .eyebrow{justify-content:center}
+    .err-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(36px,7vw,52px);line-height:.95;margin:6px 0 16px}
+    .err-msg{color:var(--muted);font-size:15.5px;line-height:1.65;margin-bottom:28px}
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+  </nav>
+  <main class="err-wrap">
+    <p class="eyebrow">TennisAC</p>
+    <h1 class="err-title">{{ title }}</h1>
+    <p class="err-msg">{{ message }}</p>
+    <a href="/" class="btn-cta">Back to TennisAC →</a>
+  </main>
+</body>
+</html>

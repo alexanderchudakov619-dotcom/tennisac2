@@ -87,14 +87,14 @@
             <span class="growth-sub">{{ growth.share_events }} share{{ '' if growth.share_events == 1 else 's' }} total</span>
         </div>
         <div class="growth-tile">
-            <span class="growth-num">{{ growth.trials }}</span>
-            <span class="growth-label">Free trials used</span>
-            <span class="growth-sub">No account, one shot each</span>
+            <span class="growth-num">{{ growth.guest_analyses }}</span>
+            <span class="growth-label">Guest analyses</span>
+            <span class="growth-sub">From {{ growth.trials }} visitor{{ '' if growth.trials == 1 else 's' }} without an account</span>
         </div>
         <div class="growth-tile">
             <span class="growth-num">{{ (growth.trial_conversion ~ '%') if growth.trial_conversion is not none else '—' }}</span>
-            <span class="growth-label">Trial → signup</span>
-            <span class="growth-sub">{{ growth.trial_signups }} signed up after a trial</span>
+            <span class="growth-label">Guest → signup</span>
+            <span class="growth-sub">{{ growth.trial_signups }} signed up after trying it as a guest</span>
         </div>
     </div>
 </section>

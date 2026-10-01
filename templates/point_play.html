@@ -44,6 +44,9 @@
     <p class="page-sub">Upload a full point and TennisAC breaks down the strategy, shot selection, and decision-making — not just your technique.</p>
 
     <div class="panel">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}<div class="flash-msg" style="max-width:640px;margin:0 auto 22px">{{ messages[0] }}</div>{% endif %}
+      {% endwith %}
       <form action="/point-play" method="POST" enctype="multipart/form-data" id="uploadForm">
 
         <div class="field-group">

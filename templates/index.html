@@ -125,12 +125,6 @@
     .pp-card .shot-name{color:#C83800}
     .pp-arrow{font-size:11px;color:#C83800;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
 
-    .trial-used{max-width:560px;margin:0 auto;text-align:center;padding:36px 28px;border-radius:20px;border:1px solid var(--border-soft);background:#fff;color:var(--muted);line-height:1.6}
-    .trial-used-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;color:var(--ink);margin-bottom:8px}
-    .trial-used .btn-cta{margin-top:20px}
-    .trial-used-alt{margin-top:16px;font-size:13.5px}
-    .trial-used-alt a{color:var(--accent);font-weight:700;text-decoration:none}
-
     @media(max-width:960px){
       .stats-grid{grid-template-columns:repeat(2,1fr)}
       .steps-grid{grid-template-columns:1fr}
@@ -193,7 +187,7 @@
       <div class="hero-sub-row">
         <p>Upload a shot or a full point. TennisAC breaks down your mechanics frame by frame and returns coaching tuned to <span class="serif-em" style="color:#FF6030">your</span> game.</p>
         <div class="hero-cta-col">
-          <a href="#analyze" class="btn-cta">{% if trial %}Analyse One Shot Free →{% else %}Analyse My Shot →{% endif %}</a>
+          <a href="#analyze" class="btn-cta">{% if trial %}Analyse a Shot Free →{% else %}Analyse My Shot →{% endif %}</a>
           <span class="scroll-hint">↓ Scroll to begin</span>
         </div>
       </div>
@@ -282,17 +276,12 @@
         <span class="big-num">01</span>
         <h2>Analyse your game</h2>
       </div>
-      <span class="analyse-hint">{% if trial %}Free · No account · No card{% else %}Side or rear angle · ≤ 60s clips{% endif %}</span>
+      <span class="analyse-hint">{% if trial %}Free · Unlimited · No account needed{% else %}Side or rear angle · ≤ 60s clips{% endif %}</span>
     </div>
 
-    {% if trial and not trial_left %}
-    <div class="trial-used rev">
-      <p class="trial-used-title">You've used your free analysis.</p>
-      <p>Create a free account to keep analyzing — and get coaching tuned to your UTR, your game style, and the player you want to play like.</p>
-      <a href="/signup" class="btn-cta">Create Free Account →</a>
-      <p class="trial-used-alt">Already have one? <a href="/login">Sign in</a></p>
-    </div>
-    {% else %}
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}<div class="flash-msg" style="max-width:640px;margin:0 auto 22px">{{ messages[0] }}</div>{% endif %}
+      {% endwith %}
     <form action="{{ '/try' if trial else '/analyze' }}" method="POST" enctype="multipart/form-data" id="uploadForm">
       <p class="select-label rev">Select what to analyse</p>
       <div class="shot-grid rev d1">
@@ -358,7 +347,6 @@
         </button>
       </div>
     </form>
-    {% endif %}
   </section>
 
   <footer class="site-footer">

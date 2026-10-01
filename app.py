@@ -1,11 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, g, has_request_context
 import os
 import uuid
 import hashlib
 import json
 import traceback
+import threading
+from contextlib import contextmanager
 from datetime import timedelta
 import psycopg2
+from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
@@ -26,21 +29,15 @@ if not app.secret_key:
     )
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
-# Keep people signed in for 90 days. Without this, Flask's login cookie only
+# Keep people signed in for 360 days. Without this, Flask's login cookie only
 # lasts until the browser closes — and phones close background browsers
 # constantly, so users kept finding themselves logged out.
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=360)
 
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
 
 # Only this account can view the /admin/users page.
 ADMIN_EMAIL = 'alexanderchudakov619@gmail.com'
-
-# Free trial: one shot analysis without an account. Tracked per browser
-# (signed session cookie) and per network, so clearing cookies alone doesn't
-# reset it. The per-network cap is 2, not 1, so two players on the same
-# home or club wifi can each get their own free analysis.
-TRIAL_LIMIT_PER_IP = 2
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
@@ -78,10 +75,49 @@ class DB:
         self._conn.commit()
 
     def close(self):
-        _pool.putconn(self._conn)
+        # Safe to call twice: the request teardown below closes anything a
+        # route didn't (e.g. because it raised halfway through).
+        if self._conn is None:
+            return
+        conn, self._conn = self._conn, None
+        try:
+            if not conn.closed:
+                conn.rollback()  # never hand back a connection mid-transaction
+            _pool.putconn(conn, close=bool(conn.closed))
+        except Exception:
+            # The pool must never be the thing that takes a request down.
+            try:
+                _pool.putconn(conn, close=True)
+            except Exception:
+                pass
+
+def _healthy_connection():
+    """A pooled connection that is actually alive. Neon's free tier suspends
+    the database after ~5 idle minutes, which silently kills every pooled
+    connection — handing one of those out would 500 the next request."""
+    for _ in range(3):
+        conn = _pool.getconn()
+        try:
+            if not conn.closed:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT 1')
+                conn.rollback()
+                return conn
+        except psycopg2.Error:
+            pass
+        _pool.putconn(conn, close=True)
+    return _pool.getconn()
 
 def get_db():
-    return DB(_pool.getconn())
+    db = DB(_healthy_connection())
+    if has_request_context():
+        g.setdefault('_dbs', []).append(db)
+    return db
+
+@app.teardown_request
+def _return_db_connections(exc):
+    for db in g.pop('_dbs', []):
+        db.close()
 
 def init_db():
     db = get_db()
@@ -182,10 +218,48 @@ os.makedirs('uploads', exist_ok=True)
 init_db()
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    return generate_password_hash(password)
+
+def password_matches(stored, password):
+    """Accounts made before the switch to salted hashes still store a bare
+    SHA-256 hex digest; accept those too (login then upgrades them)."""
+    if stored.startswith(('scrypt:', 'pbkdf2:')):
+        return check_password_hash(stored, password)
+    return stored == hashlib.sha256(password.encode()).hexdigest()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Video analysis (OpenCV + MediaPipe) is the only heavy thing this app does.
+# Render's instance has 512 MB, and one analysis peaks around 275 MB, so
+# running them one at a time is what keeps several simultaneous uploads from
+# crashing the server for everyone. Others wait their turn (they're quick).
+_analysis_slot = threading.BoundedSemaphore(1)
+ANALYSIS_WAIT_SEC = 150
+
+class ServerBusy(Exception):
+    pass
+
+@contextmanager
+def uploaded_video(file):
+    """Saves the upload, holds the analysis slot while the caller works on
+    it, and always deletes the file afterwards — even if analysis raises."""
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4().hex}.{ext}")
+    file.save(filepath)
+    try:
+        if not _analysis_slot.acquire(timeout=ANALYSIS_WAIT_SEC):
+            raise ServerBusy()
+        try:
+            yield filepath
+        finally:
+            _analysis_slot.release()
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+UNREADABLE_VIDEO_MSG = ("We couldn't read that video. Try a different clip — MP4 or MOV, "
+                        "under 60 seconds, with you clearly in frame.")
 
 def get_current_user():
     if 'user_id' not in session:
@@ -209,16 +283,22 @@ def client_ip_hash():
     ip = (request.headers.get('X-Forwarded-For') or request.remote_addr or '').split(',')[0].strip()
     return hashlib.sha256(f"{app.secret_key}:{ip}".encode()).hexdigest()
 
-def trial_available():
-    if session.get('trial_used'):
-        return False
-    db = get_db()
-    used_here = db.execute('SELECT 1 FROM trial_uses WHERE visitor_id = %s LIMIT 1',
-                           (get_visitor_id(),)).fetchone()
-    ip_count = db.execute('SELECT COUNT(*) AS n FROM trial_uses WHERE ip_hash = %s',
-                          (client_ip_hash(),)).fetchone()['n']
-    db.close()
-    return not used_here and ip_count < TRIAL_LIMIT_PER_IP
+def claim_guest_analyses(db, user_id):
+    """Moves every analysis this browser ran as a guest into the account
+    that just signed up or logged in, so nothing they did is lost."""
+    visitor_id = session.get('visitor_id')
+    if not visitor_id:
+        return
+    cards = db.execute('SELECT * FROM result_cards WHERE visitor_id = %s AND user_id IS NULL ORDER BY created_at',
+                       (visitor_id,)).fetchall()
+    for card in cards:
+        db.execute('UPDATE result_cards SET user_id = %s WHERE token = %s', (user_id, card['token']))
+        db.execute(
+            '''INSERT INTO analysis_history (user_id, shot_type, overall_score, overall_label, scores_json, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s)''',
+            (user_id, card['shot_type'], card['overall_score'], card['overall_label'],
+             card['scores_json'], card['created_at']),
+        )
 
 def create_result_card(db, shot_type, feedback, user_id=None, visitor_id=None):
     token = uuid.uuid4().hex
@@ -260,17 +340,14 @@ def index():
 
 @app.route('/try', methods=['GET', 'POST'])
 def try_free():
-    """One free shot analysis, no account or card needed. The signup ask
-    comes after they've seen their result, not before."""
+    """Shot analysis as a guest — free, unlimited, no account needed. The
+    signup ask (for personalized coaching, Point Play, progress) comes after
+    they've seen a result, not before."""
     if get_current_user():
         return redirect(url_for('index'))
 
     if request.method == 'GET':
-        return render_template('index.html', user=None, trial=True, trial_left=trial_available())
-
-    if not trial_available():
-        flash("You've used your free analysis — create a free account to keep analyzing.")
-        return redirect(url_for('signup'))
+        return render_template('index.html', user=None, trial=True)
 
     file = request.files.get('video')
     shot_type = request.form.get('shot_type', 'serve')
@@ -279,13 +356,11 @@ def try_free():
     if not file or file.filename == '' or not allowed_file(file.filename):
         return redirect(url_for('try_free'))
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4().hex}.{ext}")
-    file.save(filepath)
-    try:
+    with uploaded_video(file) as filepath:
         metrics = process_video(filepath, shot_type)
-    finally:
-        os.remove(filepath)
+    if metrics.get('error'):
+        flash(UNREADABLE_VIDEO_MSG)
+        return redirect(url_for('try_free') + '#analyze')
 
     feedback = generate_feedback(metrics, shot_type)
     visitor_id = get_visitor_id()
@@ -294,8 +369,6 @@ def try_free():
     token = create_result_card(db, shot_type, feedback, visitor_id=visitor_id)
     db.commit()
     db.close()
-    session['trial_used'] = True
-    session['trial_card'] = token
 
     return render_template('results.html', metrics=metrics, feedback=feedback,
                            shot_type=shot_type, user=None, trial=True, card_token=token)
@@ -303,14 +376,14 @@ def try_free():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         name = request.form.get('name', '').strip()
         if not email or not password or not name:
             flash('Please fill in all required fields.')
             return render_template('signup.html')
         db = get_db()
-        existing = db.execute('SELECT id FROM users WHERE email = %s', (email,)).fetchone()
+        existing = db.execute('SELECT id FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
         if existing:
             flash('An account with that email already exists.')
             db.close()
@@ -318,26 +391,14 @@ def signup():
         db.execute('INSERT INTO users (email, password, name) VALUES (%s, %s, %s)',
                    (email, hash_password(password), name))
         db.commit()
-        user = db.execute('SELECT * FROM users WHERE email = %s', (email,)).fetchone()
+        user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
 
-        # Coming from the free trial: keep that analysis in their history
-        # so signing up doesn't throw away the result that convinced them.
-        trial_token = session.get('trial_card')
-        if trial_token:
-            card = db.execute('SELECT * FROM result_cards WHERE token = %s AND user_id IS NULL',
-                              (trial_token,)).fetchone()
-            if card:
-                db.execute('UPDATE result_cards SET user_id = %s WHERE token = %s', (user['id'], trial_token))
-                db.execute(
-                    '''INSERT INTO analysis_history (user_id, shot_type, overall_score, overall_label, scores_json, created_at)
-                       VALUES (%s, %s, %s, %s, %s, %s)''',
-                    (user['id'], card['shot_type'], card['overall_score'], card['overall_label'],
-                     card['scores_json'], card['created_at']),
-                )
+        # Coming from guest analyses: keep them in their history so signing
+        # up doesn't throw away the results that convinced them.
+        claim_guest_analyses(db, user['id'])
         if session.get('visitor_id'):
             db.execute('UPDATE users SET trial_visitor_id = %s WHERE id = %s', (session['visitor_id'], user['id']))
         db.commit()
-        session.pop('trial_card', None)
         session['user_id'] = user['id']
         session.permanent = True
         db.close()
@@ -347,18 +408,21 @@ def signup():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         db = get_db()
-        user = db.execute('SELECT * FROM users WHERE email = %s AND password = %s',
-                          (email, hash_password(password))).fetchone()
-        db.close()
-        if user:
+        user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
+        if user and password_matches(user['password'], password):
+            if not user['password'].startswith(('scrypt:', 'pbkdf2:')):
+                db.execute('UPDATE users SET password = %s WHERE id = %s', (hash_password(password), user['id']))
+            claim_guest_analyses(db, user['id'])
+            db.commit()
+            db.close()
             session['user_id'] = user['id']
             session.permanent = True
             return redirect(url_for('index'))
-        else:
-            flash('Invalid email or password.')
+        db.close()
+        flash('Invalid email or password.')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -435,23 +499,17 @@ def analyze():
 
     file = request.files['video']
     shot_type = request.form.get('shot_type', 'serve')
+    if shot_type not in ('serve', 'forehand', 'backhand', 'rally'):
+        shot_type = 'serve'
 
     if file.filename == '' or not allowed_file(file.filename):
         return redirect(url_for('index'))
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    unique_name = f"{uuid.uuid4().hex}.{ext}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-    file.save(filepath)
-
-    try:
+    with uploaded_video(file) as filepath:
         metrics = process_video(filepath, shot_type)
-    finally:
-        # Always clean up the upload, even if processing raises — otherwise a
-        # bad clip (or any error) leaves the file behind forever, and under
-        # concurrent traffic the uploads folder can fill the disk and take
-        # the whole app down for everyone.
-        os.remove(filepath)
+    if metrics.get('error'):
+        flash(UNREADABLE_VIDEO_MSG)
+        return redirect(url_for('index') + '#analyze')
 
     profile = {
         'name': user['name'],
@@ -509,14 +567,10 @@ def point_play():
         point_context = request.form.get('point_context', '').strip()
         if file.filename == '' or not allowed_file(file.filename):
             return redirect(url_for('point_play'))
-        ext = file.filename.rsplit('.', 1)[1].lower()
-        unique_name = f"{uuid.uuid4().hex}.{ext}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-        file.save(filepath)
         # Get motion data from video, plus real per-shot ball physics
         # (speed, depth, net clearance, spin, heaviness) tracked straight
         # off the pixels — both need the file before it's cleaned up.
-        try:
+        with uploaded_video(file) as filepath:
             motion_metrics = process_video(filepath, 'rally')
             try:
                 ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
@@ -527,9 +581,9 @@ def point_play():
                 # and log the real error for Render's Logs tab.
                 print("[TennisAC] Ball physics failed:\n" + traceback.format_exc())
                 ball_physics = None
-        finally:
-            # Always clean up, even if processing raises (see /analyze).
-            os.remove(filepath)
+        if motion_metrics.get('error'):
+            flash(UNREADABLE_VIDEO_MSG)
+            return redirect(url_for('point_play'))
         # Build profile
         profile = {
             'name': user['name'], 'play_like': user['play_like'],
@@ -584,6 +638,38 @@ def progress():
         history_with_scores.append(row)
 
     return render_template('progress.html', user=user, history=history_with_scores)
+
+@app.errorhandler(ServerBusy)
+def server_busy(e):
+    return render_template('error.html', user=get_current_user_safe(), title="Lots of players right now",
+                           message="TennisAC is analyzing other players' videos. Give it a minute and upload again."), 503
+
+@app.errorhandler(413)
+def too_large(e):
+    return render_template('error.html', user=get_current_user_safe(), title="That video is too big",
+                           message="Videos need to be under 100 MB. Trim it to the shot or point you want analyzed (10–60 seconds) and try again."), 413
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', user=get_current_user_safe(), title="Page not found",
+                           message="That link doesn't go anywhere. It may have been typed wrong."), 404
+
+@app.errorhandler(Exception)
+def unexpected_error(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    # Logged with a [TennisAC] tag so it's easy to find in Render's Logs tab.
+    print("[TennisAC] Unexpected error on " + request.path + ":\n" + traceback.format_exc())
+    return render_template('error.html', user=get_current_user_safe(), title="Something went wrong",
+                           message="That one's on us, not you. Try again — if it keeps happening, let us know what you were doing."), 500
+
+def get_current_user_safe():
+    # Error pages must render even when the database is what failed.
+    try:
+        return get_current_user()
+    except Exception:
+        return None
 
 @app.route('/r/<token>')
 def shared_card(token):
@@ -645,7 +731,8 @@ def admin_users():
             (SELECT COUNT(DISTINCT token) FROM share_events) AS shared,
             (SELECT COUNT(*) FROM share_events) AS share_events,
             (SELECT COALESCE(SUM(views), 0) FROM result_cards) AS card_views,
-            (SELECT COUNT(*) FROM trial_uses) AS trials,
+            (SELECT COUNT(*) FROM trial_uses) AS guest_analyses,
+            (SELECT COUNT(DISTINCT visitor_id) FROM trial_uses) AS trials,
             (SELECT COUNT(*) FROM users WHERE trial_visitor_id IN (SELECT visitor_id FROM trial_uses)) AS trial_signups
         '''
     ).fetchone()
