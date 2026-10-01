@@ -3,6 +3,7 @@ import os
 import uuid
 import hashlib
 import json
+import traceback
 from datetime import timedelta
 import psycopg2
 import psycopg2.extras
@@ -517,7 +518,15 @@ def point_play():
         # off the pixels — both need the file before it's cleaned up.
         try:
             motion_metrics = process_video(filepath, 'rally')
-            ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
+            try:
+                ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
+            except Exception:
+                # Ball/swing tracking is the most fragile part (it depends on the
+                # clip and on OpenCV/MediaPipe versions). If it breaks, still give
+                # the player their coaching instead of an "Internal Server Error",
+                # and log the real error for Render's Logs tab.
+                print("[TennisAC] Ball physics failed:\n" + traceback.format_exc())
+                ball_physics = None
         finally:
             # Always clean up, even if processing raises (see /analyze).
             os.remove(filepath)
@@ -531,7 +540,11 @@ def point_play():
         }
         # Run AI analysis
         analysis = analyze_point_with_ai(motion_metrics, point_result, point_context, profile, ball_physics=ball_physics)
-        trajectory_svg = render_trajectory_svg(ball_physics)
+        try:
+            trajectory_svg = render_trajectory_svg(ball_physics) if ball_physics else None
+        except Exception:
+            print("[TennisAC] Trajectory map failed:\n" + traceback.format_exc())
+            trajectory_svg = None
         return render_template('point_play_results.html',
                                analysis=analysis,
                                point_result=point_result,
