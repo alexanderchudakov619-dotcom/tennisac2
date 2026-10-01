@@ -33,6 +33,17 @@
       border-radius:999px;background:var(--good-bg);color:var(--good);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px}
     .count-pill.zero{background:var(--border-soft);color:var(--muted-3)}
 
+    .growth-section{max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,48px) 36px}
+    .growth-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 14px}
+    .growth-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    .growth-tile{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px;display:flex;flex-direction:column;gap:4px}
+    .growth-tile.hi{border-color:var(--accent)}
+    .growth-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:40px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+    .growth-label{font-weight:600;color:var(--ink);font-size:14px}
+    .growth-sub{color:var(--muted-3);font-size:12.5px}
+    @media(max-width:860px){.growth-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:480px){.growth-grid{grid-template-columns:1fr}}
+
     .empty-card{padding:44px;text-align:center}
     .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
   </style>
@@ -59,6 +70,32 @@
         <p class="eyebrow">Admin Only</p>
         <h1 class="results-title">Users</h1>
         <p class="hero-desc">Everyone who's signed up for TennisAC, and how active they've been.</p>
+    </div>
+</section>
+
+<section class="growth-section">
+    <h2 class="growth-title">Growth</h2>
+    <div class="growth-grid">
+        <div class="growth-tile hi">
+            <span class="growth-num">{{ growth.share_rate if growth.share_rate is not none else '—' }}</span>
+            <span class="growth-label">Shares per 100 analyses</span>
+            <span class="growth-sub">{{ growth.shared }} of {{ growth.delivered }} results shared</span>
+        </div>
+        <div class="growth-tile">
+            <span class="growth-num">{{ growth.card_views }}</span>
+            <span class="growth-label">Shared card views</span>
+            <span class="growth-sub">{{ growth.share_events }} share{{ '' if growth.share_events == 1 else 's' }} total</span>
+        </div>
+        <div class="growth-tile">
+            <span class="growth-num">{{ growth.trials }}</span>
+            <span class="growth-label">Free trials used</span>
+            <span class="growth-sub">No account, one shot each</span>
+        </div>
+        <div class="growth-tile">
+            <span class="growth-num">{{ (growth.trial_conversion ~ '%') if growth.trial_conversion is not none else '—' }}</span>
+            <span class="growth-label">Trial → signup</span>
+            <span class="growth-sub">{{ growth.trial_signups }} signed up after a trial</span>
+        </div>
     </div>
 </section>
 

@@ -1,0 +1,3 @@
+# TennisAC now runs on Postgres (see DATABASE_URL) — this local SQLite file
+# from before the migration is no longer used by the app.
+tennisac.db

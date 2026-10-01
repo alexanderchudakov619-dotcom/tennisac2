@@ -334,7 +334,7 @@ def _profile_intro(profile, shot_type):
 
     play_like = profile.get('play_like')
     utr = profile.get('utr')
-    tactical = profile.get('tactical_pref', '')
+    tactical = profile.get('tactical_pref') or ''
     best_shot = profile.get('best_shot')
     backhand = profile.get('backhand_style')
     point_len = profile.get('point_length', '')

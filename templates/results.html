@@ -58,13 +58,35 @@
     .cta-section{text-align:center;padding:16px 0 54px}
 
     @media(max-width:640px){.metrics-grid{grid-template-columns:1fr}}
+
+    .share-section{padding:10px 0 20px}
+    .share-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px}
+    .share-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;color:var(--ink)}
+    .share-sub{color:var(--muted);font-size:13.5px;margin-top:2px}
+    .btn-share{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:11px 22px;cursor:pointer;transition:transform .15s}
+    .btn-share:hover{transform:translateY(-1px)}
+    .share-status{color:var(--muted);font-size:13px;text-align:right;min-height:18px;margin-top:8px}
+
+    .signup-pitch{padding:24px 0 60px}
+    .pitch-card{text-align:center;background:#fff;border:1px solid var(--border-soft);border-radius:22px;padding:36px clamp(20px,5vw,40px)}
+    .pitch-card .eyebrow{justify-content:center}
+    .pitch-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(28px,5vw,40px);line-height:1;margin:6px 0 20px}
+    .pitch-list{list-style:none;padding:0;margin:0 auto 26px;max-width:520px;text-align:left;color:var(--muted);line-height:1.6;font-size:14.5px}
+    .pitch-list li{padding:8px 0 8px 26px;position:relative;border-top:1px solid var(--border-soft)}
+    .pitch-list li:first-child{border-top:none}
+    .pitch-list li::before{content:"";position:absolute;left:4px;top:16px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+    .pitch-note{color:var(--muted-3);font-size:12.5px;margin-top:14px}
   </style>
 </head>
 <body>
 
   <nav class="site-nav">
     <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    {% if trial %}
+    <a href="/signup" class="nav-back">Create free account →</a>
+    {% else %}
     <a href="/" class="nav-back">← Analyze another shot</a>
+    {% endif %}
   </nav>
 
   <section class="results-hero">
@@ -135,9 +157,47 @@
     </div>
   </section>
 
+  {% if card_token %}
+  <section class="share-section">
+    <div class="wrap">
+      <div class="share-card">
+        <div>
+          <p class="share-title">Show your hitting partner</p>
+          <p class="share-sub">Shares your score and breakdown as a card — no name, no video.</p>
+        </div>
+        <button type="button" class="btn-share" id="shareBtn"
+                data-url="{{ url_for('shared_card', token=card_token, _external=True) }}"
+                data-log="{{ url_for('log_share', token=card_token) }}"
+                data-text="My {{ shot_type }} scored {{ feedback.overall_score or '—' }}/100 on TennisAC. What does yours score?">
+          Share result
+        </button>
+      </div>
+      <p class="share-status" id="shareStatus" aria-live="polite"></p>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if trial %}
+  <section class="signup-pitch">
+    <div class="wrap">
+      <div class="pitch-card">
+        <p class="eyebrow">That was the generic version</p>
+        <h2 class="pitch-title">Want coaching built around your game?</h2>
+        <ul class="pitch-list">
+          <li>Feedback tuned to your UTR, play style, and the player you want to play like</li>
+          <li>Point Play: full-point breakdowns with ball speed, spin, depth, and net clearance</li>
+          <li>Progress tracking across every shot you upload — starting with this one</li>
+        </ul>
+        <a href="/signup" class="btn-cta">Create Free Account →</a>
+        <p class="pitch-note">Free to sign up. No card needed. This analysis gets saved to your account.</p>
+      </div>
+    </div>
+  </section>
+  {% else %}
   <section class="cta-section">
     <div class="wrap"><a href="/" class="btn-cta">Analyze another shot</a></div>
   </section>
+  {% endif %}
 
   <footer class="site-footer">
     <div class="foot-logo">Tennis<span>AC</span></div>
@@ -146,6 +206,33 @@
 
   <script src="{{ url_for('static', filename='js/site.js') }}"></script>
   <script>
+    const shareBtn = document.getElementById('shareBtn');
+    if (shareBtn) {
+      const status = document.getElementById('shareStatus');
+      const logShare = (method) => fetch(shareBtn.dataset.log, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'method=' + encodeURIComponent(method),
+      }).catch(() => {});
+      shareBtn.addEventListener('click', async () => {
+        const {url, text} = shareBtn.dataset;
+        if (navigator.share) {
+          try {
+            await navigator.share({title: 'My TennisAC result', text, url});
+            logShare('native');
+          } catch (e) { /* cancelled the share sheet — not a share */ }
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text + ' ' + url);
+          status.textContent = 'Link copied — paste it anywhere.';
+          logShare('copy');
+        } catch (e) {
+          status.textContent = url;
+        }
+      });
+    }
+
     window.addEventListener('load', () => {
       document.querySelectorAll('.metric-bar-fill').forEach((bar, i) => {
         const target = bar.getAttribute('style').match(/width:\s*(\d+\.?\d*)%/)?.[1] || '0';

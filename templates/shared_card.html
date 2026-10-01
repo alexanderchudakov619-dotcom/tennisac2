@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — {{ card.shot_type | capitalize }} {{ card.overall_score | int if card.overall_score is not none else '—' }}/100</title>
+  <meta property="og:title" content="{{ card.shot_type | capitalize }}: {{ card.overall_score | int if card.overall_score is not none else '—' }}/100 on TennisAC" />
+  <meta property="og:description" content="AI breakdown of a real {{ card.shot_type }}. What does yours score? Analyze one shot free — no account." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:560px;margin:0 auto;padding:0 clamp(16px,5vw,32px)}
+    .card-hero{text-align:center;padding:48px 0 10px}
+    .card-hero .eyebrow{justify-content:center}
+    .card-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(36px,7vw,56px);letter-spacing:-.02em;line-height:.95;margin:0}
+
+    .score-ring-wrap{position:relative;width:180px;height:180px;margin:32px auto 0}
+    .score-ring{width:180px;height:180px}
+    .ring-bg{fill:none;stroke:var(--border-soft);stroke-width:8}
+    .ring-fill{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round}
+    .score-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .score-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:44px;line-height:1;color:var(--ink)}
+    .score-denom{color:var(--muted-3);font-size:13px}
+    .score-lbl{color:var(--accent-deep);font-weight:700;font-size:14px;margin-top:6px}
+
+    .metric-list{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:8px 20px;margin-top:34px}
+    .metric-row{display:grid;grid-template-columns:1fr 2fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--border-soft);font-size:14px}
+    .metric-row:first-child{border-top:none}
+    .metric-row .name{color:var(--ink);font-weight:600}
+    .bar{height:6px;border-radius:3px;background:var(--border-soft);overflow:hidden}
+    .bar span{display:block;height:100%;border-radius:3px}
+    .metric-row .val{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.5em;text-align:right}
+
+    .fix-card{margin-top:16px;border-radius:18px;padding:18px 20px;background:#fff;border:1px solid var(--border-soft);border-left:3px solid var(--accent)}
+    .fix-k{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+    .fix-v{color:var(--ink);font-size:14.5px;line-height:1.6;margin-top:4px}
+
+    .try-cta{text-align:center;padding:40px 0 56px}
+    .try-cta h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;line-height:1;margin-bottom:8px}
+    .try-cta p{color:var(--muted);font-size:14px;margin-bottom:20px}
+    @media(max-width:480px){.metric-row{grid-template-columns:1fr auto}.metric-row .bar{grid-column:1 / -1;order:3}}
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+  </nav>
+
+  <section class="card-hero">
+    <div class="wrap">
+      <p class="eyebrow">{{ card.shot_type | capitalize }} Analysis</p>
+      <h1 class="card-title">Shared Breakdown</h1>
+
+      <div class="score-ring-wrap">
+        <svg class="score-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-bg" cx="60" cy="60" r="52" />
+          <circle class="ring-fill" cx="60" cy="60" r="52"
+                  stroke-dasharray="{{ ((card.overall_score or 0) / 100 * 326.7) | round(1) }} 326.7"
+                  stroke-dashoffset="81.7" />
+        </svg>
+        <div class="score-text">
+          <span class="score-num">{{ card.overall_score | int if card.overall_score is not none else '—' }}</span>
+          <span class="score-denom">/100</span>
+          <span class="score-lbl">{{ card.overall_label }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      {% if scores %}
+      <div class="metric-list">
+        {% for name, data in scores.items() %}
+        {% set sc = data.score or 0 %}
+        <div class="metric-row">
+          <span class="name">{{ name }}</span>
+          <span class="bar"><span style="width:{{ sc }}%;background:{{ '#5B9B23' if sc >= 80 else ('#C8811E' if sc >= 60 else '#C8362B') }}"></span></span>
+          <span class="val">{{ data.score if data.score is not none else 'N/A' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if biggest_fix and biggest_fix[1].fix %}
+      <div class="fix-card">
+        <p class="fix-k">Biggest fix · {{ biggest_fix[0] }}</p>
+        <p class="fix-v">{{ biggest_fix[1].fix }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="try-cta">
+    <div class="wrap">
+      <h2>What does your {{ card.shot_type }} score?</h2>
+      {% if user %}
+      <p>Upload a clip and see your breakdown.</p>
+      <a href="/" class="btn-cta">Analyze a shot →</a>
+      {% else %}
+      <p>Upload one 10-second clip. No account, no card.</p>
+      <a href="/try" class="btn-cta">Analyze one shot free →</a>
+      {% endif %}
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>
