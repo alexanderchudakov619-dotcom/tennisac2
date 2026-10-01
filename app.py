@@ -14,7 +14,15 @@ from analysis.ball_physics import analyze_point_ball_physics
 from analysis.trajectory_viz import render_trajectory_svg
 
 app = Flask(__name__)
-app.secret_key = 'tennisac_secret_2025'
+# Signs the login cookie. If this leaks, anyone can forge a cookie and sign
+# in as any user (including admin), so it lives in the environment, never
+# in the code. Changing it signs everyone out once.
+app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError(
+        "SECRET_KEY is not set. Set it to a long random string (e.g. in Render's "
+        "environment settings, or in your shell before running locally)."
+    )
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 # Keep people signed in for 90 days. Without this, Flask's login cookie only
