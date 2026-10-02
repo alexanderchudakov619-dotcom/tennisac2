@@ -98,12 +98,13 @@ def analyze_point_with_ai(motion_metrics, point_result, point_context, profile, 
     # Build motion summary
     motion_summary = f"""
 Video motion data:
-- Frames analyzed: {motion_metrics.get('frames_analyzed', 'N/A')}
 - Duration: {motion_metrics.get('duration_sec', 'N/A')} seconds
-- Upper body activity ratio: {motion_metrics.get('upper_body_ratio', 'N/A')}
-- Motion consistency: {motion_metrics.get('motion_consistency', 'N/A')}
-- Lateral balance: {motion_metrics.get('lateral_balance', 'N/A')}
-- Contact height score: {motion_metrics.get('contact_height_score', 'N/A')}
+- Swings detected for the player: {motion_metrics.get('swings_detected', 'N/A')}
+- Average knee angle at the lowest point around contact (degrees; ~110-125 is a strong athletic base, 150+ is upright): {motion_metrics.get('knee_bend_avg', 'N/A')}
+- Average shoulder rotation through each swing (degrees; tour players ~85+): {motion_metrics.get('trunk_rotation_avg', 'N/A')}
+- Average hip-shoulder separation (degrees; 30+ is a strong coil): {motion_metrics.get('hip_shoulder_separation', 'N/A')}
+- Average elbow angle at contact (degrees; low means a jammed arm): {motion_metrics.get('arm_extension_avg', 'N/A')}
+(Body mechanics are measured from pose tracking; N/A means the player wasn't tracked clearly enough — don't invent them.)
 """.strip()
 
     context_line = (

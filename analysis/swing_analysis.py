@@ -73,25 +73,38 @@ def _torso_len(p):
     return float(np.linalg.norm(sh - hp))
 
 
-def track_pose(video_path, max_seconds=12.0):
-    """Per-frame pose of the player nearest the camera.
+def track_pose_detailed(video_path, max_seconds=12.0, stride=1):
+    """Pose of the player nearest the camera on every `stride`-th frame.
 
-    Returns a list (one entry per frame, aligned with track_ball's
-    detections) of None or an (33, 3) array of [x_px, y_px, visibility],
-    or None overall if pose tracking isn't available on this server.
+    Returns (poses, worlds, fps) — both lists aligned one-per-frame with
+    the video (None on skipped frames or where nobody was found):
+      poses[i]:  (33, 3) array of [x_px, y_px, visibility]
+      worlds[i]: (33, 3) array of [x_m, y_m, z_m] — MediaPipe's estimated
+                 3D joint positions in meters, centered on the hips; this
+                 is what makes rotation measurable from a single camera.
+    Returns (None, None, fps) if pose tracking isn't available here.
     """
-    landmarker = _load_landmarker()
-    if landmarker is None:
-        return None
-    import mediapipe as mp
-
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    landmarker = _load_landmarker()
+    if landmarker is None:
+        cap.release()
+        return None, None, fps
+    import mediapipe as mp
+
     max_frames = int(max_seconds * fps)
-    poses = []
+    poses, worlds = [], []
     frame_idx = 0
     try:
         while frame_idx < max_frames:
+            if frame_idx % stride:
+                # grab() skips decoding work for frames we don't analyze.
+                if not cap.grab():
+                    break
+                poses.append(None)
+                worlds.append(None)
+                frame_idx += 1
+                continue
             ret, frame = cap.read()
             if not ret:
                 break
@@ -103,18 +116,37 @@ def track_pose(video_path, max_seconds=12.0):
             image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             result = landmarker.detect_for_video(image, int(frame_idx * 1000 / fps))
 
-            best = None
-            for lms in result.pose_landmarks:
+            best, best_world = None, None
+            for k, lms in enumerate(result.pose_landmarks):
                 # Landmarks are normalized; scale back to the original
                 # frame so they share pixel space with the ball tracker.
-                arr = np.array([[lm.x * w, lm.y * h, lm.visibility] for lm in lms])
+                # MediaPipe still guesses joints that are outside the picture
+                # (e.g. knees on a waist-up shot); mark those not visible so
+                # nothing downstream measures an invented joint.
+                arr = np.array([[lm.x * w, lm.y * h,
+                                 lm.visibility if -0.02 <= lm.x <= 1.02 and -0.02 <= lm.y <= 1.02 else 0.0]
+                                for lm in lms])
                 if best is None or _torso_len(arr) > _torso_len(best):
                     best = arr
+                    wl = result.pose_world_landmarks[k] if k < len(result.pose_world_landmarks) else None
+                    best_world = np.array([[lm.x, lm.y, lm.z] for lm in wl]) if wl else None
             poses.append(best)
+            worlds.append(best_world)
             frame_idx += 1
     finally:
         cap.release()
         landmarker.close()
+    return poses, worlds, fps
+
+
+def track_pose(video_path, max_seconds=12.0):
+    """Per-frame pose of the player nearest the camera.
+
+    Returns a list (one entry per frame, aligned with track_ball's
+    detections) of None or an (33, 3) array of [x_px, y_px, visibility],
+    or None overall if pose tracking isn't available on this server.
+    """
+    poses, _, _ = track_pose_detailed(video_path, max_seconds=max_seconds)
     return poses
 
 

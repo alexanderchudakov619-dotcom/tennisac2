@@ -359,7 +359,7 @@ def try_free():
     with uploaded_video(file) as filepath:
         metrics = process_video(filepath, shot_type)
     if metrics.get('error'):
-        flash(UNREADABLE_VIDEO_MSG)
+        flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
         return redirect(url_for('try_free') + '#analyze')
 
     feedback = generate_feedback(metrics, shot_type)
@@ -506,9 +506,9 @@ def analyze():
         return redirect(url_for('index'))
 
     with uploaded_video(file) as filepath:
-        metrics = process_video(filepath, shot_type)
+        metrics = process_video(filepath, shot_type, dominant_hand=user['dominant_hand'])
     if metrics.get('error'):
-        flash(UNREADABLE_VIDEO_MSG)
+        flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
         return redirect(url_for('index') + '#analyze')
 
     profile = {
@@ -571,7 +571,7 @@ def point_play():
         # (speed, depth, net clearance, spin, heaviness) tracked straight
         # off the pixels — both need the file before it's cleaned up.
         with uploaded_video(file) as filepath:
-            motion_metrics = process_video(filepath, 'rally')
+            motion_metrics = process_video(filepath, 'rally', dominant_hand=user['dominant_hand'])
             try:
                 ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
             except Exception:
@@ -581,8 +581,11 @@ def point_play():
                 # and log the real error for Render's Logs tab.
                 print("[TennisAC] Ball physics failed:\n" + traceback.format_exc())
                 ball_physics = None
-        if motion_metrics.get('error'):
-            flash(UNREADABLE_VIDEO_MSG)
+        # Only an unreadable file stops Point Play — if the body mechanics
+        # couldn't be read (player small or far away), the point breakdown
+        # and ball physics are still worth showing.
+        if motion_metrics.get('error') == 'unreadable':
+            flash(motion_metrics['error_message'])
             return redirect(url_for('point_play'))
         # Build profile
         profile = {

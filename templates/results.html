@@ -59,6 +59,9 @@
 
     @media(max-width:640px){.metrics-grid{grid-template-columns:1fr}}
 
+    .metric-vt{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+    .metric-vt .k{color:var(--muted-3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-right:4px}
+
     .share-section{padding:10px 0 20px}
     .share-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px}
     .share-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;color:var(--ink)}
@@ -111,7 +114,7 @@
         </div>
       </div>
 
-      <p class="frames-note">{{ metrics.frames_analyzed }} frames analyzed · {{ metrics.duration_sec }}s clip</p>
+      <p class="frames-note">{{ metrics.swings_detected }} {{ 'swing' if metrics.swings_detected == 1 else 'swings' }} measured · {{ metrics.frames_analyzed }} frames tracked · {{ metrics.duration_sec }}s clip</p>
     </div>
   </section>
 
@@ -132,6 +135,12 @@
             ></div>
           </div>
           <span class="metric-score">{{ data.score or 'N/A' }} / 100</span>
+          {% if data.value or data.target %}
+          <div class="metric-vt">
+            {% if data.value %}<span><span class="k">You</span> {{ data.value }}</span>{% endif %}
+            {% if data.target %}<span><span class="k">Tour-level target</span> {{ data.target }}</span>{% endif %}
+          </div>
+          {% endif %}
           <div class="metric-details">
             <p><strong>What this means:</strong> {{ data.definition or 'This metric shows one important part of your technique.' }}</p>
             <p><strong>AI Focus:</strong> {{ data.ai_focus or 'TennisAC checks how this part of your movement affects the shot.' }}</p>
