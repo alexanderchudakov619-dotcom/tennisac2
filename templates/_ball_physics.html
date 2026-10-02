@@ -1,0 +1,82 @@
+{# Ball physics + trajectory map, shared by Point Play and shot analysis.
+   Expects ball_physics and trajectory_svg. #}
+<style>
+    .physics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .physics-card{background:#fff;border:1px solid var(--border-soft);border-radius:16px;padding:18px 20px}
+    .physics-shot-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+    .physics-stat{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--border-soft);font-size:14px}
+    .physics-stat:first-of-type{border-top:none}
+    .physics-stat-label{color:var(--muted)}
+    .physics-stat-value{font-weight:600;color:var(--ink)}
+    .physics-note{color:var(--muted);font-size:14px;line-height:1.6;background:var(--ok-bg);border:1px solid rgba(200,129,30,.25);border-radius:12px;padding:14px 16px}
+
+    .trajectory-wrap{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:22px 18px 16px;margin-bottom:18px}
+    .trajectory-legend{display:flex;flex-wrap:wrap;gap:14px 20px;justify-content:center;margin-top:14px;font-size:12.5px;color:var(--muted)}
+    .trajectory-legend span{display:inline-flex;align-items:center;gap:6px}
+    .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .legend-line{width:16px;height:3px;border-radius:2px;display:inline-block}
+</style>
+      <h2 class="section-title">Shot Trajectory</h2>
+      {% if trajectory_svg %}
+      <div class="trajectory-wrap">
+        {{ trajectory_svg | safe }}
+        <div class="trajectory-legend">
+          <span><i class="legend-line" style="background:#16a34a"></i> Topspin</span>
+          <span><i class="legend-line" style="background:#dc2626"></i> Slice / Backspin</span>
+          <span><i class="legend-line" style="background:#d97706"></i> Flat</span>
+          <span><i class="legend-dot" style="background:#16a34a"></i> Deep bounce</span>
+          <span><i class="legend-dot" style="background:#d97706"></i> Medium bounce</span>
+          <span><i class="legend-dot" style="background:#dc2626"></i> Short bounce</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="physics-note">Couldn't build a trajectory map for this clip — ball physics works best filmed from behind the baseline with the full court in view.</p>
+      {% endif %}
+
+      <h2 class="section-title">Ball Physics</h2>
+      {% if ball_physics and ball_physics.shots %}
+      <div class="physics-grid">
+        {% for shot in ball_physics.shots %}
+          {% if shot.speed_mph.available or shot.depth.available or shot.height.available or shot.spin.available or shot.heaviness.available %}
+          <div class="physics-card">
+            <div class="physics-shot-label">Shot {{ loop.index }}{% if shot.swing %} · Your {{ shot.swing.shot_type }}{% if shot.swing.two_handed %} (two-handed){% endif %}{% endif %}</div>
+            {% if shot.speed_mph.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Speed</span><span class="physics-stat-value">{{ shot.speed_mph.value }} mph</span></div>
+            {% endif %}
+            {% if shot.spin.available %}
+            <div class="physics-stat" title="{{ shot.spin.note }}"><span class="physics-stat-label">Spin</span><span class="physics-stat-value">{{ shot.spin.type }}</span></div>
+            {% endif %}
+            {% if shot.swing %}
+            {% if shot.swing.path.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Swing path</span><span class="physics-stat-value">{{ shot.swing.path.label }} ({{ shot.swing.path.angle_deg }}°)</span></div>
+            {% endif %}
+            {% if shot.swing.roll.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Forearm roll</span><span class="physics-stat-value">{{ shot.swing.roll.label }}</span></div>
+            {% endif %}
+            {% if shot.swing.hand_speed_mph.available %}
+            <div class="physics-stat" title="{{ shot.swing.hand_speed_mph.note }}"><span class="physics-stat-label">Hand speed</span><span class="physics-stat-value">{{ shot.swing.hand_speed_mph.value }} mph</span></div>
+            {% endif %}
+            <div class="physics-stat"><span class="physics-stat-label">Contact</span><span class="physics-stat-value">{{ shot.swing.contact_height }}</span></div>
+            {% endif %}
+            {% if shot.depth.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Depth</span><span class="physics-stat-value">{{ shot.depth.label }} ({{ shot.depth.from_baseline_ft }} ft from baseline)</span></div>
+            {% endif %}
+            {% if shot.height.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Net clearance</span><span class="physics-stat-value">{{ shot.height.net_clearance_ft }} ft</span></div>
+            {% endif %}
+            {% if shot.heaviness.available %}
+            <div class="physics-stat"><span class="physics-stat-label">Heaviness</span><span class="physics-stat-value">{{ shot.heaviness.score }}/100</span></div>
+            {% endif %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if not ball_physics.pose_tracked %}
+      <p class="physics-note" style="margin-top:14px">Couldn't see your body clearly enough in this clip to read your swing, so spin comes from the bounce only. For swing-based spin, film from behind the baseline with your whole body in frame.</p>
+      {% endif %}
+      {% if not ball_physics.calibrated %}
+      <p class="physics-note" style="margin-top:14px">Couldn't get a confident read on the court lines in this clip, so exact numbers aren't shown for it — ball physics works best filmed from behind the baseline with the full court in view.</p>
+      {% endif %}
+      {% else %}
+      <p class="physics-note">TennisAC couldn't track the ball confidently enough on this clip to report speed, depth, spin, or height — try filming from behind the baseline with the ball clearly visible against the court.</p>
+      {% endif %}

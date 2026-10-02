@@ -15,7 +15,7 @@ import psycopg2.pool
 from analysis.video_processor import process_video
 from analysis.pose_analysis import generate_feedback
 from analysis.point_analyzer import analyze_point_with_ai
-from analysis.ball_physics import analyze_point_ball_physics
+from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
 
 app = Flask(__name__)
@@ -306,6 +306,15 @@ def uploaded_video(file):
         if os.path.exists(filepath):
             os.remove(filepath)
 
+def safe_trajectory_svg(ball_physics):
+    if not ball_physics:
+        return None
+    try:
+        return render_trajectory_svg(ball_physics)
+    except Exception:
+        print("[TennisAC] Trajectory map failed:\n" + traceback.format_exc())
+        return None
+
 UNREADABLE_VIDEO_MSG = ("We couldn't read that video. Try a different clip — MP4 or MOV, "
                         "under 60 seconds, with you clearly in frame.")
 
@@ -580,8 +589,20 @@ def analyze():
     if file.filename == '' or not allowed_file(file.filename):
         return redirect(url_for('index'))
 
+    ball_physics, fence_view = None, False
     with uploaded_video(file) as filepath:
         metrics = process_video(filepath, shot_type, dominant_hand=user['dominant_hand'])
+        # Filmed from the fence with the whole court in view? Then the ball
+        # can be measured too — speed, spin, depth, net clearance — same as
+        # Point Play. Otherwise skip it rather than show shaky numbers.
+        if not metrics.get('error'):
+            try:
+                fence_view = court_fully_visible(filepath)
+                if fence_view:
+                    ball_physics = analyze_point_ball_physics(filepath, dominant_hand=user['dominant_hand'])
+            except Exception:
+                print("[TennisAC] Ball physics failed on /analyze:\n" + traceback.format_exc())
+                ball_physics = None
     if metrics.get('error'):
         flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
         return redirect(url_for('index') + '#analyze')
@@ -629,7 +650,10 @@ def analyze():
         shot_type=shot_type,
         user=user,
         trial=is_guest(user),
-        card_token=token
+        card_token=token,
+        fence_view=fence_view,
+        ball_physics=ball_physics,
+        trajectory_svg=safe_trajectory_svg(ball_physics),
     )
 
 @app.route('/point-play', methods=['GET', 'POST'])
@@ -673,11 +697,7 @@ def point_play():
         }
         # Run AI analysis
         analysis = analyze_point_with_ai(motion_metrics, point_result, point_context, profile, ball_physics=ball_physics)
-        try:
-            trajectory_svg = render_trajectory_svg(ball_physics) if ball_physics else None
-        except Exception:
-            print("[TennisAC] Trajectory map failed:\n" + traceback.format_exc())
-            trajectory_svg = None
+        trajectory_svg = safe_trajectory_svg(ball_physics)
         db = get_db()
         db.execute(
             '''INSERT INTO point_play_history

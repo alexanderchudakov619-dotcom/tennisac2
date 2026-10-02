@@ -137,74 +137,176 @@ def _line_angle_length(line):
     return angle, length
 
 
-def find_court_homography(frame):
-    """Best-effort detection of the near baseline + both sidelines.
+def _intersect(a, b):
+    """Intersection of the infinite lines through segments a and b."""
+    x1, y1, x2, y2 = a
+    x3, y3, x4, y4 = b
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(denom) < 1e-6:
+        return None
+    px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom
+    py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom
+    return (px, py)
 
-    Returns {'H': 3x3 homography (pixel -> feet), 'confidence': 0..1} or
-    {'H': None, 'confidence': 0.0} when the geometry in frame isn't clean
-    enough to trust. Every caller MUST check confidence before using H —
-    this is deliberately conservative because a wrong calibration doesn't
-    fail loudly, it just produces a confidently wrong mph number.
+
+def _center_line(line, pool, max_gap):
+    """Painted lines are several pixels thick, and edge detection returns
+    one segment per edge. Shift the chosen segment to the middle of the
+    painted stripe (halfway between its outermost parallel twins) — at the
+    far baseline a single pixel is about a foot of court."""
+    x1, y1, x2, y2 = [float(v) for v in line]
+    dx, dy = x2 - x1, y2 - y1
+    n = math.hypot(dx, dy)
+    if n == 0:
+        return line
+    nx, ny = -dy / n, dx / n  # unit normal
+    ang = math.atan2(dy, dx)
+    offs = [0.0]
+    for other in pool:
+        ox1, oy1, ox2, oy2 = [float(v) for v in other]
+        oang = math.atan2(oy2 - oy1, ox2 - ox1)
+        diff = abs((ang - oang + math.pi / 2) % math.pi - math.pi / 2)
+        if diff > math.radians(3):
+            continue
+        mx, my = (ox1 + ox2) / 2, (oy1 + oy2) / 2
+        d = (mx - x1) * nx + (my - y1) * ny
+        if abs(d) <= max_gap:
+            offs.append(d)
+    shift = (max(offs) + min(offs)) / 2
+    return np.array([x1 + nx * shift, y1 + ny * shift, x2 + nx * shift, y2 + ny * shift])
+
+
+def _refine_on_mask(line, mask, window):
+    """Re-fits a detected line through the centre of the painted stripe:
+    at points along the segment, look across the line (±window px) for
+    bright pixels, take their centre, and least-squares fit a line through
+    those centres. Sub-pixel accurate, and it ignores which edge the
+    Hough transform happened to latch onto."""
+    x1, y1, x2, y2 = [float(v) for v in line]
+    dx, dy = x2 - x1, y2 - y1
+    n = math.hypot(dx, dy)
+    if n == 0:
+        return line
+    ux, uy = dx / n, dy / n
+    nx, ny = -uy, ux
+    hgt, wid = mask.shape[:2]
+    pts = []
+    for t in np.linspace(0.05, 0.95, 40):
+        cx, cy = x1 + dx * t, y1 + dy * t
+        offs = []
+        for d in np.arange(-window, window + 0.5, 0.5):
+            px, py = int(round(cx + nx * d)), int(round(cy + ny * d))
+            if 0 <= px < wid and 0 <= py < hgt and mask[py, px]:
+                offs.append(d)
+        if offs:
+            c = (min(offs) + max(offs)) / 2
+            pts.append((cx + nx * c, cy + ny * c))
+    if len(pts) < 8:
+        return line
+    pts = np.array(pts)
+    # Fit as y = f(x) for flat lines, x = f(y) for steep ones.
+    if abs(dx) >= abs(dy):
+        a, b = np.polyfit(pts[:, 0], pts[:, 1], 1)
+        return np.array([x1, a * x1 + b, x2, a * x2 + b])
+    a, b = np.polyfit(pts[:, 1], pts[:, 0], 1)
+    return np.array([a * y1 + b, y1, a * y2 + b, y2])
+
+
+def find_court_homography(frame):
+    """Detects the court from a fence view: near baseline, both doubles
+    sidelines, and — when the whole court is in frame — the far baseline.
+
+    Returns {'H': 3x3 homography (pixel -> feet) or None,
+             'confidence': 0..1,
+             'full_court': True only when all four boundary lines were found}.
+    Every caller MUST check H/confidence before using it — this is
+    deliberately conservative, because a wrong calibration doesn't fail
+    loudly, it just produces a confidently wrong mph number.
     """
+    none = {'H': None, 'confidence': 0.0, 'full_court': False}
     h, w = frame.shape[:2]
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # Court lines are painted bright against a darker playing surface.
     _, bright = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
     edges = cv2.Canny(bright, 50, 150)
-    lines = cv2.HoughLinesP(
-        edges, 1, np.pi / 180, threshold=60,
-        minLineLength=w * 0.22, maxLineGap=18,
-    )
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50,
+                            minLineLength=w * 0.12, maxLineGap=20)
     if lines is None or len(lines) < 3:
-        return {'H': None, 'confidence': 0.0}
+        return none
 
-    horiz, vert = [], []
+    horiz, side = [], []
     for l in lines.reshape(-1, 4):  # OpenCV 4 returns (N,1,4), OpenCV 5 (N,4)
         angle, length = _line_angle_length(l)
-        if abs(angle) < 18 or abs(abs(angle) - 180) < 18:
+        a = abs(angle)
+        if a < 10 or a > 170:
             horiz.append((l, length))
-        elif abs(abs(angle) - 90) < 30:
-            vert.append((l, length))
+        elif 18 < a < 162 and length > h * 0.2:
+            # From a fence, sidelines run away from the camera and can lie
+            # as flat as ~20-35 degrees as they converge toward the far end.
+            side.append((l, length))
+    if not horiz or len(side) < 2:
+        return none
 
-    if len(horiz) < 1 or len(vert) < 2:
-        return {'H': None, 'confidence': 0.0}
+    # Near baseline: the longest horizontal line in the lower part of the
+    # frame (nearest the camera, so longest due to perspective).
+    lower = [hl for hl in horiz if (hl[0][1] + hl[0][3]) / 2 > h * 0.4]
+    if not lower:
+        return none
+    all_segments = [l for l, _ in horiz] + [l for l, _ in side]
+    stripe = max(4.0, h * 0.012)
+    baseline = _refine_on_mask(_center_line(max(lower, key=lambda hl: hl[1])[0], all_segments, stripe), bright, stripe)
+    base_mid_x = (baseline[0] + baseline[2]) / 2
 
-    # Near baseline: the longest, lowest-in-frame horizontal line — the
-    # baseline closest to the camera is both nearer (longer in pixels due
-    # to perspective) and lower on screen than the service line or net.
-    horiz.sort(key=lambda hl: (-(hl[0][1] + hl[0][3]) / 2, -hl[1]))
-    baseline = max(horiz, key=lambda hl: hl[1])[0]
+    # Sidelines: on each side of the baseline's middle, take the outermost
+    # of the long candidates — that's the doubles line, not the singles.
+    def base_x(l):
+        p = _intersect(baseline, l)
+        return p[0] if p else None
+    lefts = [(l, ln, base_x(l)) for l, ln in side if (l[0] + l[2]) / 2 < base_mid_x]
+    rights = [(l, ln, base_x(l)) for l, ln in side if (l[0] + l[2]) / 2 >= base_mid_x]
+    lefts = [c for c in lefts if c[2] is not None]
+    rights = [c for c in rights if c[2] is not None]
+    if not lefts or not rights:
+        return none
+    lmax = max(c[1] for c in lefts)
+    rmax = max(c[1] for c in rights)
+    left_line = min((c for c in lefts if c[1] >= 0.6 * lmax), key=lambda c: c[2])[0]
+    right_line = max((c for c in rights if c[1] >= 0.6 * rmax), key=lambda c: c[2])[0]
+    left_line = _refine_on_mask(_center_line(left_line, all_segments, stripe), bright, stripe)
+    right_line = _refine_on_mask(_center_line(right_line, all_segments, stripe), bright, stripe)
 
-    # Sidelines: the two longest near-vertical lines on opposite sides of
-    # the frame's horizontal center.
-    left_candidates = [vl for vl in vert if (vl[0][0] + vl[0][2]) / 2 < w / 2]
-    right_candidates = [vl for vl in vert if (vl[0][0] + vl[0][2]) / 2 >= w / 2]
-    if not left_candidates or not right_candidates:
-        return {'H': None, 'confidence': 0.0}
-    left_line = max(left_candidates, key=lambda vl: vl[1])[0]
-    right_line = max(right_candidates, key=lambda vl: vl[1])[0]
-
-    def intersect(a, b):
-        x1, y1, x2, y2 = a
-        x3, y3, x4, y4 = b
-        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-        if abs(denom) < 1e-6:
-            return None
-        px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom
-        py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom
-        return (px, py)
-
-    near_left = intersect(baseline, left_line)
-    near_right = intersect(baseline, right_line)
+    near_left = _intersect(baseline, left_line)
+    near_right = _intersect(baseline, right_line)
     if near_left is None or near_right is None:
-        return {'H': None, 'confidence': 0.0}
+        return none
+    near_y = (near_left[1] + near_right[1]) / 2
 
-    # Far corners: follow the sidelines up to the top of their detected
-    # segment as a stand-in for the far baseline when it isn't itself
-    # clearly visible in frame.
-    far_left = (left_line[0], left_line[1]) if left_line[1] < left_line[3] else (left_line[2], left_line[3])
-    far_right = (right_line[0], right_line[1]) if right_line[1] < right_line[3] else (right_line[2], right_line[3])
+    # Far baseline: the topmost horizontal line that sits between the two
+    # sidelines well up the court and is shorter than the near baseline
+    # (perspective). Finding it is what "the whole court is visible" means.
+    far = None
+    for l, ln in sorted(horiz, key=lambda hl: (hl[0][1] + hl[0][3]) / 2):
+        y = (l[1] + l[3]) / 2
+        if y > near_y - h * 0.2 or ln >= math.hypot(near_right[0] - near_left[0], near_right[1] - near_left[1]):
+            continue
+        fl, fr = _intersect(l, left_line), _intersect(l, right_line)
+        if fl is None or fr is None or fr[0] - fl[0] < w * 0.08:
+            continue
+        mid = (l[0] + l[2]) / 2
+        if fl[0] - w * 0.05 <= mid <= fr[0] + w * 0.05:
+            # Narrow window here: the net tape can sit just below the far
+            # baseline in a fence view and must not be averaged in.
+            far = _refine_on_mask(l, bright, max(3.0, h * 0.006))
+            break
+
+    if far is not None:
+        far_left, far_right = _intersect(far, left_line), _intersect(far, right_line)
+    else:
+        # No far baseline: fall back to the top of each detected sideline
+        # segment. Usable for rough numbers, but not a full-court view.
+        far_left = (left_line[0], left_line[1]) if left_line[1] < left_line[3] else (left_line[2], left_line[3])
+        far_right = (right_line[0], right_line[1]) if right_line[1] < right_line[3] else (right_line[2], right_line[3])
 
     src = np.array([near_left, near_right, far_right, far_left], dtype=np.float32)
     dst = np.array([
@@ -214,23 +316,52 @@ def find_court_homography(frame):
         [0, COURT_LENGTH_FT],
     ], dtype=np.float32)
 
-    # Sanity checks before trusting this geometry at all: a real
-    # baseline-to-net-ish view keeps the base noticeably wide, with both
-    # sidelines roughly the same pixel length. Big mismatches mean the
-    # detector grabbed the wrong lines.
+    # Sanity checks before trusting this geometry at all: the near base
+    # must be wide, the far end narrower (perspective), and both sidelines
+    # about the same length. Big mismatches mean the wrong lines.
     base_width_px = math.hypot(near_right[0] - near_left[0], near_right[1] - near_left[1])
+    far_width_px = math.hypot(far_right[0] - far_left[0], far_right[1] - far_left[1])
     side_len_px = math.hypot(far_left[0] - near_left[0], far_left[1] - near_left[1])
+    right_side_len_px = math.hypot(far_right[0] - near_right[0], far_right[1] - near_right[1])
     confidence = 0.0
-    if base_width_px > w * 0.2 and side_len_px > h * 0.15:
-        right_side_len_px = math.hypot(far_right[0] - near_right[0], far_right[1] - near_right[1])
+    if base_width_px > w * 0.2 and side_len_px > h * 0.15 and far_width_px < base_width_px:
         symmetry = 1.0 - min(1.0, abs(side_len_px - right_side_len_px) / max(side_len_px, right_side_len_px, 1))
         confidence = max(0.0, min(1.0, symmetry))
 
     if confidence < MIN_CALIBRATION_CONFIDENCE:
-        return {'H': None, 'confidence': confidence}
+        return {'H': None, 'confidence': confidence, 'full_court': False}
 
     H, _ = cv2.findHomography(src, dst)
-    return {'H': H, 'confidence': confidence}
+    if H is None:
+        return none
+
+    # Structural check: if these really are the baselines and sidelines,
+    # the near service line (18 ft from the baseline, between the singles
+    # lines) must show up exactly where the calibration predicts. Picking
+    # the service line as the "baseline", or the net tape as the far
+    # baseline, makes that prediction miss — so the whole read is rejected.
+    try:
+        H_inv = np.linalg.inv(H)
+    except np.linalg.LinAlgError:
+        return none
+    pred = cv2.perspectiveTransform(np.array([[[4.5, 18.0], [31.5, 18.0]]], dtype=np.float32), H_inv)[0]
+    (px1, py1), (px2, py2) = pred
+    tol = max(6.0, h * 0.015)
+
+    def matches_service_line(l):
+        x1, y1, x2, y2 = l
+        for x, y in ((x1, y1), (x2, y2), ((x1 + x2) / 2, (y1 + y2) / 2)):
+            if not (min(px1, px2) - tol <= x <= max(px1, px2) + tol):
+                return False
+            t = (x - px1) / (px2 - px1) if px2 != px1 else 0.5
+            if abs(y - (py1 + t * (py2 - py1))) > tol:
+                return False
+        return True
+
+    if not any(matches_service_line(l) for l, _ in horiz):
+        return {'H': None, 'confidence': 0.0, 'full_court': False}
+
+    return {'H': H, 'confidence': confidence, 'full_court': far is not None}
 
 
 def pixel_to_court(H, x, y):
@@ -569,6 +700,23 @@ def compute_shot_metrics(segment, fps, H=None, net_line=None, next_segment=None,
         }
 
     return result
+
+
+def court_fully_visible(video_path, samples=(0.0, 0.5, 1.0)):
+    """True when the clip is filmed from a fence view — the court lines are
+    found well enough to calibrate real-world distances — in any of a few
+    frames near the start (the very first can be blurry from the phone
+    being set down). Cheap: a few frames, no ball tracking."""
+    cap = cv2.VideoCapture(video_path)
+    try:
+        for sec in samples:
+            cap.set(cv2.CAP_PROP_POS_MSEC, sec * 1000)
+            ok, frame = cap.read()
+            if ok and find_court_homography(frame)['full_court']:
+                return True
+        return False
+    finally:
+        cap.release()
 
 
 def analyze_point_ball_physics(video_path, max_seconds=12.0, dominant_hand=None):
