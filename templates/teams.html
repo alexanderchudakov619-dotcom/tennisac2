@@ -20,7 +20,8 @@
     .team-panel{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:26px;box-shadow:0 16px 36px -24px rgba(120,50,0,.3)}
     .team-panel h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;margin:0 0 6px}
     .team-panel .sub{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:18px}
-    .row-form{display:flex;gap:10px}
+    .row-form{display:flex;gap:10px;flex-wrap:wrap}
+    .row-form input[name=display_name]{flex-basis:100%}
     .row-form input{flex:1;min-width:0;font:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border-soft);border-radius:12px;background:#fff;color:var(--ink)}
     .row-form input.code{text-transform:uppercase;letter-spacing:.2em;font-weight:700}
     .row-form button{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:12px;padding:12px 18px;cursor:pointer;white-space:nowrap}
@@ -44,7 +45,7 @@
     <div class="nav-right">
         <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
         <a class="nav-link" href="{{ url_for('progress') }}">Progress</a>
-        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+        {% if user.is_guest %}<a class="nav-link" href="/signup">Save account</a><a class="nav-link" href="/login">Sign In</a>{% else %}<a class="nav-link" href="{{ url_for('logout') }}">Logout</a>{% endif %}
     </div>
 </nav>
 
@@ -66,6 +67,7 @@
             <h2>Coach a team</h2>
             <p class="sub">Create a team, then give your players its code.</p>
             <form class="row-form" method="POST" action="{{ url_for('create_team') }}">
+{% if user.is_guest and user.name == 'Guest' %}<input name="display_name" placeholder="Your name (coach)" maxlength="60" required>{% endif %}
                 <input name="name" placeholder="Team name, e.g. Match Point Juniors" maxlength="80" required>
                 <button type="submit">Create</button>
             </form>
@@ -90,6 +92,7 @@
             <h2>Join a team</h2>
             <p class="sub">Got a code from your coach? Enter it here.</p>
             <form class="row-form" method="POST" action="{{ url_for('join_team') }}">
+{% if user.is_guest and user.name == 'Guest' %}<input name="display_name" placeholder="Your name" maxlength="60" required>{% endif %}
                 <input class="code" name="code" placeholder="ABC123" maxlength="10" autocomplete="off" required>
                 <button type="submit">Join</button>
             </form>

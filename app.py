@@ -173,6 +173,12 @@ def init_db():
     # free trial it came from, to measure trial -> signup conversion.
     db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'")
     db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_visitor_id TEXT')
+    # Guest accounts: created automatically the first time someone uses the
+    # app without signing up, so every feature works with no account. Signing
+    # up turns the guest row into a real account (keeping everything);
+    # was_guest records that, for the guest -> signup conversion number.
+    db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE')
+    db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS was_guest BOOLEAN NOT NULL DEFAULT FALSE')
 
     db.execute('''
         CREATE TABLE IF NOT EXISTS trial_uses (
@@ -311,6 +317,51 @@ def get_current_user():
     db.close()
     return user
 
+GUEST_NAME = 'Guest'
+# Never a valid hash, so nobody can log into a guest row with a password.
+GUEST_PASSWORD = '!guest'
+
+def get_or_create_user():
+    """The signed-in user, or — for someone using TennisAC without an
+    account — a guest account made on the spot and remembered in this
+    browser for 360 days."""
+    user = get_current_user()
+    if user:
+        return user
+    db = get_db()
+    user = db.execute(
+        'INSERT INTO users (email, password, name, is_guest) VALUES (%s, %s, %s, TRUE) RETURNING *',
+        (f"guest-{uuid.uuid4().hex}@guest.tennisacapp.com", GUEST_PASSWORD, GUEST_NAME),
+    ).fetchone()
+    db.commit()
+    db.close()
+    session['user_id'] = user['id']
+    session.permanent = True
+    return user
+
+def is_guest(user):
+    return user is None or bool(user.get('is_guest'))
+
+def take_display_name(db, user):
+    """Guests are asked for a name where others will see it (a team
+    roster, the leaderboard); save it when they give one."""
+    name = request.form.get('display_name', '').strip()[:60]
+    if name and is_guest(user):
+        db.execute('UPDATE users SET name = %s WHERE id = %s', (name, user['id']))
+        return name
+    return user['name']
+
+def merge_guest_into(db, guest_id, user_id):
+    """Moves everything a guest did into the account they just logged into."""
+    for table in ('analysis_history', 'result_cards', 'point_play_history'):
+        db.execute(f'UPDATE {table} SET user_id = %s WHERE user_id = %s', (user_id, guest_id))
+    db.execute('UPDATE teams SET coach_id = %s WHERE coach_id = %s', (user_id, guest_id))
+    db.execute('''INSERT INTO team_members (team_id, user_id, joined_at)
+                  SELECT team_id, %s, joined_at FROM team_members WHERE user_id = %s
+                  ON CONFLICT DO NOTHING''', (user_id, guest_id))
+    db.execute('DELETE FROM team_members WHERE user_id = %s', (guest_id,))
+    db.execute('DELETE FROM users WHERE id = %s AND is_guest', (guest_id,))
+
 def get_visitor_id():
     """A stable anonymous id for this browser, kept in the signed session
     cookie. Makes the session permanent so it survives closing the browser."""
@@ -376,44 +427,16 @@ def keep_signed_in():
 @app.route('/')
 def index():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('try_free'))
-    return render_template('index.html', user=user, is_admin=(user['email'] == ADMIN_EMAIL))
+    return render_template('index.html', user=user, trial=is_guest(user),
+                           is_admin=bool(user) and user['email'] == ADMIN_EMAIL)
 
 @app.route('/try', methods=['GET', 'POST'])
 def try_free():
-    """Shot analysis as a guest — free, unlimited, no account needed. The
-    signup ask (for personalized coaching, Point Play, progress) comes after
-    they've seen a result, not before."""
-    if get_current_user():
-        return redirect(url_for('index'))
-
-    if request.method == 'GET':
-        return render_template('index.html', user=None, trial=True)
-
-    file = request.files.get('video')
-    shot_type = request.form.get('shot_type', 'serve')
-    if shot_type not in ('serve', 'forehand', 'backhand', 'rally'):
-        shot_type = 'serve'
-    if not file or file.filename == '' or not allowed_file(file.filename):
-        return redirect(url_for('try_free'))
-
-    with uploaded_video(file) as filepath:
-        metrics = process_video(filepath, shot_type)
-    if metrics.get('error'):
-        flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
-        return redirect(url_for('try_free') + '#analyze')
-
-    feedback = generate_feedback(metrics, shot_type)
-    visitor_id = get_visitor_id()
-    db = get_db()
-    db.execute('INSERT INTO trial_uses (visitor_id, ip_hash) VALUES (%s, %s)', (visitor_id, client_ip_hash()))
-    token = create_result_card(db, shot_type, feedback, visitor_id=visitor_id)
-    db.commit()
-    db.close()
-
-    return render_template('results.html', metrics=metrics, feedback=feedback,
-                           shot_type=shot_type, user=None, trial=True, card_token=token)
+    # Kept for old links and shared cards: everything now works from the
+    # home page, account or not.
+    if request.method == 'POST':
+        return analyze()
+    return redirect(url_for('index'))
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -430,8 +453,16 @@ def signup():
             flash('An account with that email already exists.')
             db.close()
             return render_template('signup.html')
-        db.execute('INSERT INTO users (email, password, name) VALUES (%s, %s, %s)',
-                   (email, hash_password(password), name))
+        current = get_current_user()
+        if current and current['is_guest']:
+            # Turn this browser's guest account into the real one, so every
+            # analysis, Point Play, and team it already has stays put.
+            db.execute('''UPDATE users SET email = %s, password = %s, name = %s,
+                          is_guest = FALSE, was_guest = TRUE WHERE id = %s''',
+                       (email, hash_password(password), name, current['id']))
+        else:
+            db.execute('INSERT INTO users (email, password, name) VALUES (%s, %s, %s)',
+                       (email, hash_password(password), name))
         db.commit()
         user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
 
@@ -458,25 +489,31 @@ def login():
             if not user['password'].startswith(('scrypt:', 'pbkdf2:')):
                 db.execute('UPDATE users SET password = %s WHERE id = %s', (hash_password(password), user['id']))
             claim_guest_analyses(db, user['id'])
+            current = get_current_user()
+            if current and current['is_guest'] and current['id'] != user['id']:
+                merge_guest_into(db, current['id'], user['id'])
             db.commit()
             db.close()
             session['user_id'] = user['id']
             session.permanent = True
             return redirect(url_for('index'))
         db.close()
-        flash('Invalid email or password.')
+        # Say which part is wrong — signup already reveals whether an email
+        # has an account, so this gives nothing away and saves confusion.
+        if user and not user['is_guest']:
+            flash("That password doesn't match this email. Check it (passwords are case-sensitive) and try again.")
+        else:
+            flash("There's no account with that email. Double-check the spelling, or create a new account.")
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    return redirect(url_for('index'))
 
 @app.route('/profile/setup', methods=['GET', 'POST'])
 def profile_setup():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     if request.method == 'POST':
         shot_order = (
             f"1. {request.form.get('shot1','')}, "
@@ -503,9 +540,7 @@ def profile_setup():
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 def profile_edit():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     if request.method == 'POST':
         shot_order = (
             f"1. {request.form.get('shot1','')}, "
@@ -532,9 +567,7 @@ def profile_edit():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
 
     if 'video' not in request.files:
         return redirect(url_for('index'))
@@ -566,6 +599,8 @@ def analyze():
         'shot_order': user['shot_order'],
     }
 
+    if is_guest(user) and not user['play_like']:
+        profile = None  # no profile yet: skip the "Here's your analysis, Guest" intro
     feedback = generate_feedback(metrics, shot_type, profile=profile)
 
     db = get_db()
@@ -593,14 +628,13 @@ def analyze():
         feedback=feedback,
         shot_type=shot_type,
         user=user,
+        trial=is_guest(user),
         card_token=token
     )
 
 @app.route('/point-play', methods=['GET', 'POST'])
 def point_play():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     if request.method == 'POST':
         if 'video' not in request.files:
             return redirect(url_for('point_play'))
@@ -685,9 +719,7 @@ def load_point_plays(user_id):
 @app.route('/point-play/<int:play_id>')
 def point_play_saved(play_id):
     """A saved Point Play result, for the player or their coach."""
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     play = db.execute('SELECT * FROM point_play_history WHERE id = %s', (play_id,)).fetchone()
     allowed = play is not None and can_view_player(db, user, play['user_id'])
@@ -724,9 +756,7 @@ def load_history(user_id):
 
 @app.route('/progress')
 def progress():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     return render_template('progress.html', user=user, player=user, history=load_history(user['id']),
                            point_plays=load_point_plays(user['id']))
 
@@ -755,9 +785,7 @@ def can_view_player(db, viewer, player_id):
 def compare():
     """Before/after: two analyses of the same player side by side, metric
     by metric, so the effect of working on a fix is visible."""
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     try:
         ids = [int(request.args['a']), int(request.args['b'])]
     except (KeyError, ValueError):
@@ -792,9 +820,7 @@ def coached_team(db, team_id, user):
 
 @app.route('/teams')
 def teams():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     coaching = db.execute(
         '''SELECT t.*, COUNT(m.user_id) AS players
@@ -811,14 +837,13 @@ def teams():
 
 @app.route('/teams/create', methods=['POST'])
 def create_team():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     name = request.form.get('name', '').strip()[:80]
     if not name:
         flash('Give your team a name.')
         return redirect(url_for('teams'))
     db = get_db()
+    take_display_name(db, user)
     for _ in range(10):
         code = ''.join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(6))
         if not db.execute('SELECT 1 FROM teams WHERE join_code = %s', (code,)).fetchone():
@@ -831,9 +856,7 @@ def create_team():
 
 @app.route('/teams/join', methods=['POST'])
 def join_team():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     code = ''.join(ch for ch in request.form.get('code', '').upper() if ch.isalnum())
     db = get_db()
     team = db.execute('SELECT * FROM teams WHERE join_code = %s', (code,)).fetchone()
@@ -841,6 +864,7 @@ def join_team():
         db.close()
         flash("That team code didn't match a team. Check it with your coach and try again.")
         return redirect(url_for('teams'))
+    take_display_name(db, user)
     db.execute('INSERT INTO team_members (team_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING',
                (team['id'], user['id']))
     db.commit()
@@ -850,9 +874,7 @@ def join_team():
 
 @app.route('/teams/<int:team_id>/leave', methods=['POST'])
 def leave_team(team_id):
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     db.execute('DELETE FROM team_members WHERE team_id = %s AND user_id = %s', (team_id, user['id']))
     db.commit()
@@ -862,9 +884,7 @@ def leave_team(team_id):
 
 @app.route('/teams/<int:team_id>')
 def team_detail(team_id):
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     team = coached_team(db, team_id, user)
     if not team:
@@ -900,9 +920,7 @@ def team_detail(team_id):
 
 @app.route('/teams/<int:team_id>/players/<int:player_id>')
 def team_player(team_id, player_id):
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     team = coached_team(db, team_id, user)
     player = db.execute(
@@ -917,9 +935,7 @@ def team_player(team_id, player_id):
 
 @app.route('/teams/<int:team_id>/players/<int:player_id>/remove', methods=['POST'])
 def remove_player(team_id, player_id):
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    user = get_or_create_user()
     db = get_db()
     if coached_team(db, team_id, user):
         db.execute('DELETE FROM team_members WHERE team_id = %s AND user_id = %s', (team_id, player_id))
@@ -997,12 +1013,11 @@ CHALLENGE_SHOTS = ('serve', 'forehand', 'backhand')
 
 @app.route('/r/<token>/challenge', methods=['POST'])
 def enter_challenge(token):
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('signup'))
-    parts = (user['name'] or 'Player').split()
-    display = parts[0] + (f" {parts[-1][0]}." if len(parts) > 1 else '')
+    user = get_or_create_user()
     db = get_db()
+    name = take_display_name(db, user)
+    parts = (name or GUEST_NAME).split()
+    display = parts[0] + (f" {parts[-1][0]}." if len(parts) > 1 else '')
     card = db.execute('SELECT * FROM result_cards WHERE token = %s AND user_id = %s', (token, user['id'])).fetchone()
     if card and card['shot_type'] in CHALLENGE_SHOTS and card['overall_score'] is not None:
         db.execute('UPDATE result_cards SET challenge_name = %s WHERE token = %s', (display, token))
@@ -1043,6 +1058,7 @@ def admin_users():
                MAX(a.created_at) AS last_active
         FROM users u
         LEFT JOIN analysis_history a ON a.user_id = u.id
+        WHERE NOT u.is_guest
         GROUP BY u.id
         ORDER BY u.created_at DESC
         '''
@@ -1055,9 +1071,13 @@ def admin_users():
             (SELECT COUNT(DISTINCT token) FROM share_events) AS shared,
             (SELECT COUNT(*) FROM share_events) AS share_events,
             (SELECT COALESCE(SUM(views), 0) FROM result_cards) AS card_views,
-            (SELECT COUNT(*) FROM trial_uses) AS guest_analyses,
-            (SELECT COUNT(DISTINCT visitor_id) FROM trial_uses) AS trials,
-            (SELECT COUNT(*) FROM users WHERE trial_visitor_id IN (SELECT visitor_id FROM trial_uses)) AS trial_signups
+            (SELECT COUNT(*) FROM trial_uses)
+              + (SELECT COUNT(*) FROM analysis_history a JOIN users u ON u.id = a.user_id WHERE u.is_guest)
+              + (SELECT COUNT(*) FROM point_play_history p JOIN users u ON u.id = p.user_id WHERE u.is_guest) AS guest_analyses,
+            (SELECT COUNT(DISTINCT visitor_id) FROM trial_uses)
+              + (SELECT COUNT(*) FROM users WHERE is_guest OR was_guest) AS trials,
+            (SELECT COUNT(*) FROM users WHERE was_guest
+               OR trial_visitor_id IN (SELECT visitor_id FROM trial_uses)) AS trial_signups
         '''
     ).fetchone()
     db.close()

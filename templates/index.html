@@ -137,7 +137,7 @@
   <nav class="site-nav">
     <a href="/" class="nav-logo">Tennis<span>AC</span></a>
     <div class="nav-right">
-      {% if user %}
+      {% if user and not trial %}
       <div class="nav-user-chip">
         <div class="nav-avatar">{{ (user.name or '?')[0]|upper }}</div>
         <span class="name">{{ user.name }}</span>
@@ -150,8 +150,11 @@
       <a href="/profile/edit" class="nav-link">Edit Profile</a>
       <a href="/logout" class="nav-link">Log Out</a>
       {% else %}
+      <a href="/progress" class="nav-link">Progress</a>
+      <a href="/teams" class="nav-link">Teams</a>
+      <a href="/challenge" class="nav-link">Challenge</a>
       <a href="/login" class="nav-link">Sign In</a>
-      <a href="/signup" class="nav-link">Create Account</a>
+      <a href="/signup" class="nav-link">{{ 'Save Account' if user else 'Create Account' }}</a>
       {% endif %}
     </div>
   </nav>
@@ -216,7 +219,7 @@
     </div>
   </section>
 
-  {% if user %}
+  {% if user and not trial %}
   <!-- PROFILE -->
   <section class="profile-section">
     <div class="rev">
@@ -284,7 +287,7 @@
       {% with messages = get_flashed_messages() %}
         {% if messages %}<div class="flash-msg" style="max-width:640px;margin:0 auto 22px">{{ messages[0] }}</div>{% endif %}
       {% endwith %}
-    <form action="{{ '/try' if trial else '/analyze' }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+    <form action="/analyze" method="POST" enctype="multipart/form-data" id="uploadForm">
       <p class="select-label rev">Select what to analyse</p>
       <div class="shot-grid rev d1">
         <label class="shot-option" data-accent="serve">
@@ -323,11 +326,11 @@
             <span class="shot-sub">Movement &amp; positioning</span>
           </span>
         </label>
-        <a href="{{ '/signup' if trial else '/point-play' }}" class="pp-card">
+        <a href="/point-play" class="pp-card">
           <span class="shot-watermark">05</span>
           <span class="shot-name">Point Play</span>
           <span class="shot-sub">Full point breakdown</span>
-          <span class="pp-arrow">{% if trial %}With free account →{% else %}Analyse →{% endif %}</span>
+          <span class="pp-arrow">Analyse →</span>
         </a>
       </div>
 

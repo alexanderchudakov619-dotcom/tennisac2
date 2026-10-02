@@ -29,12 +29,14 @@
   <nav class="site-nav">
     <a href="/" class="nav-logo">Tennis<span>AC</span></a>
     <div class="nav-right">
+      {% if not user.is_guest %}
       <div class="nav-user-chip">
         <div class="nav-avatar">{{ (user.name or '?')[0]|upper }}</div>
         <span class="name">{{ user.name }}</span>
       </div>
+      {% endif %}
       <a href="/" class="nav-link">← Back</a>
-      <a href="/logout" class="nav-link">Log Out</a>
+      {% if user.is_guest %}<a href="/signup" class="nav-link">Save account</a>{% else %}<a href="/logout" class="nav-link">Log Out</a>{% endif %}
     </div>
   </nav>
 

@@ -69,6 +69,7 @@
     .btn-share{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:11px 22px;cursor:pointer;transition:transform .15s}
     .btn-share:hover{transform:translateY(-1px)}
     .challenge-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px;margin-top:12px}
+    .name-input{font:inherit;font-size:14px;padding:10px 14px;border:1px solid var(--border-soft);border-radius:999px;min-width:0;flex:1 1 180px}
     .btn-outline{background:#fff;color:var(--accent);border:1.5px solid var(--accent)}
     .share-status{color:var(--muted);font-size:13px;text-align:right;min-height:18px;margin-top:8px}
 
@@ -87,11 +88,7 @@
 
   <nav class="site-nav">
     <a href="/" class="nav-logo">Tennis<span>AC</span></a>
-    {% if trial %}
-    <a href="/signup" class="nav-back">Create free account →</a>
-    {% else %}
     <a href="/" class="nav-back">← Analyze another shot</a>
-    {% endif %}
   </nav>
 
   <section class="results-hero">
@@ -190,6 +187,7 @@
           <p class="share-title">#TennisAC{{ shot_type | capitalize }}Challenge</p>
           <p class="share-sub">Put this {{ shot_type }} on the public leaderboard (first name and last initial only).</p>
         </div>
+        {% if user.is_guest and user.name == 'Guest' %}<input name="display_name" class="name-input" placeholder="Name for the leaderboard" maxlength="60" required>{% endif %}
         <button type="submit" class="btn-share btn-outline">Enter challenge</button>
       </form>
       {% endif %}
@@ -201,15 +199,15 @@
   <section class="signup-pitch">
     <div class="wrap">
       <div class="pitch-card">
-        <p class="eyebrow">That was the generic version</p>
-        <h2 class="pitch-title">Want coaching built around your game?</h2>
+        <p class="eyebrow">Saved on this browser</p>
+        <h2 class="pitch-title">Keep your game in one place</h2>
         <ul class="pitch-list">
-          <li>Feedback tuned to your UTR, play style, and the player you want to play like</li>
-          <li>Point Play: full-point breakdowns with ball speed, spin, depth, and net clearance</li>
-          <li>Progress tracking across every shot you upload — starting with this one</li>
+          <li>Your history on any phone or laptop, not just this browser</li>
+          <li>Coaching tuned to your UTR, play style, and the player you want to play like</li>
+          <li>Your name on team rosters and challenge leaderboards</li>
         </ul>
         <a href="/signup" class="btn-cta">Create Free Account →</a>
-        <p class="pitch-note">Free, unlimited, no card. Everything you've analyzed here gets saved to your account.</p>
+        <p class="pitch-note">Optional, free, no card. Everything you've done here moves into your account.</p>
       </div>
     </div>
   </section>
