@@ -53,6 +53,18 @@
     .cmp-bar span{font-size:14px}
     .cmp-bar a{background:var(--accent);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:9px 16px;border-radius:999px;white-space:nowrap}
 
+    .pp-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:28px;margin:48px 0 14px}
+    .pp-list{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:4px 20px}
+    .pp-row{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--border-soft);text-decoration:none;color:inherit}
+    .pp-row:first-child{border-top:none}
+    .pp-badge{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+    .pp-badge.won{background:var(--good-bg);color:var(--good)}
+    .pp-badge.lost{background:var(--bad-bg);color:var(--bad)}
+    .pp-text{min-width:0}
+    .pp-date{display:block;color:var(--muted-3);font-size:12.5px}
+    .pp-sum{display:block;color:var(--ink);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pp-go{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
+
     .empty-card{padding:44px;text-align:center}
     .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
   </style>
@@ -134,10 +146,26 @@
                 </div>
             {% endfor %}
         </div>
-    {% else %}
+    {% elif not point_plays %}
         <div class="panel empty-card">
             <h2>No analyses yet</h2>
             <p class="hero-desc">Analyze your first shot to start tracking progress.</p>
+        </div>
+    {% endif %}
+
+    {% if point_plays %}
+        <h2 class="pp-title">Point Play</h2>
+        <div class="pp-list">
+            {% for pp in point_plays %}
+            <a class="pp-row" href="{{ url_for('point_play_saved', play_id=pp.id) }}">
+                <span class="pp-badge {{ 'won' if pp.point_result == 'won' else 'lost' }}">{{ 'Won' if pp.point_result == 'won' else 'Lost' }}</span>
+                <span class="pp-text">
+                    <span class="pp-date">{{ pp.created_at | nicedate }}</span>
+                    <span class="pp-sum">{{ pp.summary }}</span>
+                </span>
+                <span class="pp-go">View →</span>
+            </a>
+            {% endfor %}
         </div>
     {% endif %}
 </section>

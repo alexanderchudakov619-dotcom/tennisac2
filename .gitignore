@@ -1,3 +1,14 @@
 # TennisAC now runs on Postgres (see DATABASE_URL) — this local SQLite file
 # from before the migration is no longer used by the app.
 tennisac.db
+
+# Local Python environment and caches — Render installs its own from
+# requirements.txt via build.sh, so none of this belongs in the repo.
+venv/
+__pycache__/
+*.pyc
+
+# Uploaded clips are deleted after analysis; never commit any leftovers.
+uploads/
+
+.DS_Store

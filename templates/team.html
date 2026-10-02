@@ -73,6 +73,7 @@
                         <th>Player</th>
                         <th>UTR</th>
                         <th>Analyses</th>
+                        <th>Points</th>
                         <th>Latest</th>
                         <th>Trend</th>
                         <th>Last active</th>
@@ -85,6 +86,7 @@
                         <td><div class="cell-name">{{ p.name }}</div><div class="cell-muted">{{ p.email }}</div></td>
                         <td class="cell-muted">{{ p.utr or '—' }}</td>
                         <td class="num">{{ p.analyses }}</td>
+                        <td class="num">{{ p.point_plays }}</td>
                         <td class="num">{% if p.latest %}{{ p.latest.overall_score }} <span class="cell-muted">{{ p.latest.shot_type }}</span>{% else %}<span class="cell-muted">—</span>{% endif %}</td>
                         <td class="num">
                             {% if p.trend is none %}<span class="cell-muted" title="Needs 4+ analyses">—</span>

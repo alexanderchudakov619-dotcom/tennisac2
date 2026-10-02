@@ -201,6 +201,22 @@ def init_db():
         )
     ''')
 
+    # Saved Point Play results, so players and their coaches can revisit
+    # them. ball_physics_json keeps the per-shot numbers (speed, spin...).
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS point_play_history (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            point_result TEXT,
+            point_context TEXT,
+            analysis_json TEXT,
+            ball_physics_json TEXT,
+            trajectory_svg TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_point_play_user ON point_play_history (user_id, created_at DESC)')
+
     # Challenge leaderboard: set when the owner enters this result (shown
     # as first name + last initial); NULL means not entered.
     db.execute('ALTER TABLE result_cards ADD COLUMN IF NOT EXISTS challenge_name TEXT')
@@ -628,6 +644,18 @@ def point_play():
         except Exception:
             print("[TennisAC] Trajectory map failed:\n" + traceback.format_exc())
             trajectory_svg = None
+        db = get_db()
+        db.execute(
+            '''INSERT INTO point_play_history
+               (user_id, point_result, point_context, analysis_json, ball_physics_json, trajectory_svg)
+               VALUES (%s, %s, %s, %s, %s, %s)''',
+            (user['id'], point_result, point_context[:2000], json.dumps(analysis),
+             # numpy scalars (np.bool_, np.int64) from the trackers -> plain JSON
+             json.dumps(ball_physics, default=lambda o: o.item() if hasattr(o, 'item') else str(o)) if ball_physics else None,
+             trajectory_svg),
+        )
+        db.commit()
+        db.close()
         return render_template('point_play_results.html',
                                analysis=analysis,
                                point_result=point_result,
@@ -635,6 +663,44 @@ def point_play():
                                trajectory_svg=trajectory_svg,
                                user=user)
     return render_template('point_play.html', user=user)
+
+def load_point_plays(user_id):
+    db = get_db()
+    rows = db.execute(
+        '''SELECT id, point_result, point_context, analysis_json, created_at
+           FROM point_play_history WHERE user_id = %s ORDER BY created_at DESC''', (user_id,)
+    ).fetchall()
+    db.close()
+    out = []
+    for r in rows:
+        row = dict(r)
+        try:
+            breakdown = (json.loads(row['analysis_json'] or '{}').get('breakdown') or [''])
+        except (TypeError, ValueError, AttributeError):
+            breakdown = ['']
+        row['summary'] = breakdown[0] if breakdown else ''
+        out.append(row)
+    return out
+
+@app.route('/point-play/<int:play_id>')
+def point_play_saved(play_id):
+    """A saved Point Play result, for the player or their coach."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    play = db.execute('SELECT * FROM point_play_history WHERE id = %s', (play_id,)).fetchone()
+    allowed = play is not None and can_view_player(db, user, play['user_id'])
+    db.close()
+    if not allowed:
+        abort(404)
+    try:
+        analysis = json.loads(play['analysis_json'] or '{}')
+        ball_physics = json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None
+    except (TypeError, ValueError):
+        analysis, ball_physics = {}, None
+    return render_template('point_play_results.html', analysis=analysis, point_result=play['point_result'],
+                           ball_physics=ball_physics, trajectory_svg=play['trajectory_svg'], user=user)
 
 
 def load_history(user_id):
@@ -661,7 +727,8 @@ def progress():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
-    return render_template('progress.html', user=user, player=user, history=load_history(user['id']))
+    return render_template('progress.html', user=user, player=user, history=load_history(user['id']),
+                           point_plays=load_point_plays(user['id']))
 
 # ── Coach mode ────────────────────────────────────────────────────────────
 
@@ -818,6 +885,8 @@ def team_detail(team_id):
                WHERE user_id = %s AND overall_score IS NOT NULL ORDER BY created_at DESC LIMIT 6''', (r['id'],)
         ).fetchall()
         p['latest'] = recent[0] if recent else None
+        p['point_plays'] = db.execute('SELECT COUNT(*) AS n FROM point_play_history WHERE user_id = %s',
+                                      (r['id'],)).fetchone()['n']
         # Trend: last three scores against the three before them.
         if len(recent) >= 4:
             new = [x['overall_score'] for x in recent[:3]]
@@ -844,7 +913,7 @@ def team_player(team_id, player_id):
     if not player:
         abort(404)
     return render_template('progress.html', user=user, player=player, team=team,
-                           history=load_history(player_id))
+                           history=load_history(player_id), point_plays=load_point_plays(player_id))
 
 @app.route('/teams/<int:team_id>/players/<int:player_id>/remove', methods=['POST'])
 def remove_player(team_id, player_id):
