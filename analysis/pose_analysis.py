@@ -13,7 +13,7 @@ def score_0_100(value, low, high, invert=False):
         return None
     clamped = max(low, min(high, value))
     score = (clamped - low) / (high - low) * 100
-    return round(100 - score if invert else score, 1)
+    return round(100 - score if invert else score)
 
 
 def label(score):
@@ -25,7 +25,7 @@ def label(score):
     return "Poor"
 
 
-def metric_entry(score, definition, ai_focus, fix_low, fix_high=None, value=None, target=None):
+def metric_entry(score, definition, ai_focus, fix_low, fix_high=None, value=None, target=None, detail=None):
     """
     Build a metric result with a distinct definition/AI-focus/fix per metric,
     instead of leaving those fields empty and letting the template fall back
@@ -41,6 +41,7 @@ def metric_entry(score, definition, ai_focus, fix_low, fix_high=None, value=None
         "fix": fix,
         "value": value,
         "target": target,
+        "detail": detail,  # the exact measurement (e.g. "146° at the knee"), shown on hover
     }
 
 
@@ -52,7 +53,49 @@ def _deg(v):
 
 def _serve_reach(ch):
     # Full serve reach puts the hand ~2.1 torso lengths above the hips.
-    return f"{min(100, round(ch / 2.1 * 100))}% of full reach" if ch is not None else None
+    if ch is None:
+        return None
+    pct = ch / 2.1
+    if pct >= 0.9:
+        return "Full reach"
+    if pct >= 0.75:
+        return "Just below full reach"
+    return "Well below full reach"
+
+def _pct_reach(ch):
+    return f"{min(100, round(ch / 2.1 * 100))}% of your full reach" if ch is not None else None
+
+def _words(v, bands):
+    """bands: [(threshold, label), ...] checked in order with v >= threshold;
+    the last label is the fallback."""
+    if v is None:
+        return None
+    for threshold, text in bands[:-1]:
+        if v >= threshold:
+            return text
+    return bands[-1][1]
+
+def _by_score(score, words):
+    """words = (excellent, good, needs_work, poor): the word shown always
+    agrees with the metric's rating, which comes from the same score."""
+    if score is None:
+        return None
+    if score >= 80:
+        return words[0]
+    if score >= 60:
+        return words[1]
+    if score >= 40:
+        return words[2]
+    return words[3]
+
+ELBOW_WORDS = ("Almost straight", "Slightly bent", "Bent", "Very bent (jammed)")
+EXTEND_WORDS = ("Extended through the ball", "Slightly bent", "Bent", "Jammed")
+KNEE_WORDS = ("Deep bend", "Medium bend", "Slight bend (standing tall)", "Barely bending")
+TURN_WORDS = ("Full turn", "Good turn", "Half turn", "Little turn (mostly arm)")
+COIL_WORDS = ("Strong coil", "Some coil", "A little coil", "Hips and shoulders turn together")
+
+def _detail(v, what):
+    return f"{v:.0f}° {what}" if v is not None else None
 
 def _height_zone(ch):
     if ch is None:
@@ -67,7 +110,14 @@ def _height_zone(ch):
 
 def _toss_spread(std):
     # ~20-inch torso for an average adult; close enough to put it in inches.
-    return f"About {std * 20:.0f} in between serves" if std is not None else None
+    if std is None:
+        return None
+    inches = std * 20
+    if inches <= 3:
+        return f"Same spot every serve (within ~{max(1, round(inches))} in)"
+    if inches <= 6:
+        return f"Moves a little (~{round(inches)} in)"
+    return f"Moves around a lot (~{round(inches)} in)"
 
 NO_KNEE = ("We couldn't see your legs clearly enough to measure this — film with "
            "your whole body in frame, feet included.")
@@ -80,10 +130,10 @@ def _separation_metric(m):
     return metric_entry(
         sc,
         definition="The gap between how far your shoulders turn and how far your hips turn — the 'coil' that stores energy, like winding a spring.",
-        ai_focus="Compares your shoulder-line and hip-line rotation frame by frame from the 3D skeleton and finds the biggest gap.",
+        ai_focus="Watches how far your shoulders turn compared with your hips during the backswing.",
         fix_low="Your hips and shoulders are turning together as one block. Let your shoulders keep turning after your hips stop on the backswing, then unwind hips-first into the ball.",
         fix_high="You're creating real separation between hips and shoulders — that coil is free power.",
-        value=_deg(sep), target="30°+",
+        value=_by_score(sc, COIL_WORDS), target="Strong coil", detail=_detail(sep, "between hips and shoulders"),
     )
 
 
@@ -100,10 +150,11 @@ def serve_feedback(m):
     results["Contact Height"] = metric_entry(
         ch_score,
         definition="How high you meet the ball compared with your full reach — reaching up fully gives a better angle into the box.",
-        ai_focus="Finds the moment your hitting hand peaks above your head and measures how high that is relative to your body.",
+        ai_focus="Finds the moment you hit the ball and checks how high your hand is compared with your full reach.",
         fix_low="Extend your arm fully and reach up into the toss instead of letting it drop. A higher contact point reduces net errors and adds pop.",
         fix_high="You're reaching up well into the toss — keep this contact height consistent as you add pace.",
-        value=_serve_reach(ch), target="90%+ of full reach",
+        value=_by_score(ch_score, ("Full reach", "Just below full reach", "Below full reach", "Well below full reach")),
+        target="Full reach", detail=_pct_reach(ch),
     )
     if ch_score is not None and ch_score < 60:
         tips.append("Your contact point is below your full reach. Toss a little higher and reach up to it with a straight arm.")
@@ -115,11 +166,11 @@ def serve_feedback(m):
     ae_score = score_0_100(ae, 100, 170)
     results["Arm Extension"] = metric_entry(
         ae_score,
-        definition="Your elbow angle at contact — tour servers hit with the arm nearly straight (about 155° or more), which gives maximum reach and racquet speed.",
-        ai_focus="Measures the angle at your elbow (shoulder–elbow–wrist) in 3D at the moment of contact.",
+        definition="How straight your hitting arm is when you hit the ball. Pros hit with the arm almost straight, which gives maximum reach and racquet speed.",
+        ai_focus="Checks the bend in your elbow at the moment you hit the ball.",
         fix_low="Your elbow is still bent at contact. Focus on 'reaching' for the ball rather than hitting with a bent arm — this adds both height and power.",
         fix_high="Your arm extension at contact is excellent — that's giving you full reach and racquet speed.",
-        value=_deg(ae), target="155°+",
+        value=_by_score(ae_score, ELBOW_WORDS), target="Almost straight", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 60:
         tips.append("Your elbow does not fully extend at contact. Work on straightening your arm up into the ball.")
@@ -130,10 +181,10 @@ def serve_feedback(m):
     results["Toss Consistency"] = metric_entry(
         tc_score,
         definition="How much your toss location moves from one serve to the next. A repeatable toss is the base of a repeatable serve.",
-        ai_focus="Finds the top of your tossing hand's motion on each serve and measures how far it drifts side to side between serves.",
+        ai_focus="Finds where your toss arm releases on each serve and compares them.",
         fix_low=NO_TOSS if tc is None else "Your toss placement is drifting between serves. Practice isolated toss repetitions — release from the exact same spot every time before adding the swing.",
         fix_high="Your toss is landing in a tight, repeatable window — that consistency is a big asset.",
-        value=_toss_spread(tc), target="Within ~3 in",
+        value=_toss_spread(tc), target="Same spot every serve",
     )
     if tc_score is not None and tc_score < 60:
         tips.append("Your toss moves around between serves. Practice isolated toss drills — release from the same point each time.")
@@ -145,11 +196,11 @@ def serve_feedback(m):
     kb_score = score_0_100(kb, 100, 170, invert=True)
     results["Knee Bend (Loading)"] = metric_entry(
         kb_score,
-        definition="How much you bend your knees before pushing up into the serve. Tour servers sink to roughly 110–120° at the knee to store energy for the leg drive.",
-        ai_focus="Tracks your knee angle (hip–knee–ankle) through the loading phase and finds the deepest point before you drive up.",
+        definition="How much you bend your knees before pushing up into the serve. Pros sink into a deep knee bend to store energy, then drive up into the ball.",
+        ai_focus="Watches your knees as you load and finds your lowest point before you push up.",
         fix_low=NO_KNEE if kb is None else "You're staying too upright before driving up. Sink lower into your legs during the loading phase so you can push off the ground with more force.",
         fix_high="Your knee bend is generating solid leg drive — that's a strong foundation for power.",
-        value=_deg(kb), target="≤ 120°",
+        value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
         tips.append("You are not bending your knees enough before serving. A deeper knee bend helps you drive upward and add power.")
@@ -160,10 +211,10 @@ def serve_feedback(m):
     results["Shoulder Turn"] = metric_entry(
         sa_score,
         definition="How far your shoulders rotate from the trophy position through contact — that turn is where much of a serve's racquet speed comes from.",
-        ai_focus="Tracks the direction your shoulder line faces in 3D from the windup through contact and measures the total turn.",
+        ai_focus="Watches how far your shoulders turn from the trophy position through contact.",
         fix_low="Your shoulder rotation is limited, which caps your power. Turn your back more toward the net at the trophy position, then rotate fully through the ball.",
         fix_high="Your shoulder turn is generating a strong coil — that's translating into more racquet speed.",
-        value=_deg(sa), target="95°+",
+        value=_by_score(sa_score, TURN_WORDS), target="Full turn", detail=_detail(sa, "of shoulder turn"),
     )
     if sa_score is not None and sa_score < 50:
         tips.append("Your shoulder rotation looks limited. Turn your shoulders further at the trophy position before swinging up.")
@@ -176,13 +227,25 @@ def serve_feedback(m):
     return results, tips
 
 
+def _contact_zone_score(ch):
+    """Groundstroke contact height (torso lengths above the hips): waist to
+    chest is the ideal strike zone; lower costs more than higher."""
+    if ch is None:
+        return None
+    if ch < 0.15:      # below the waist
+        return round(max(0, 55 - (0.15 - ch) * 120))
+    if ch <= 0.9:      # waist to chest/shoulder: the strike zone
+        return round(80 + (min(ch, 0.6) - 0.15) / 0.45 * 20)
+    return round(max(50, 100 - (ch - 0.9) * 80))  # above the shoulder
+
+
 def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extension_hi):
     ch = m.get("contact_height_avg")
-    ch_score = score_0_100(ch, 0.0, 0.8)
+    ch_score = _contact_zone_score(ch)
     results["Contact Point"] = metric_entry(
         ch_score,
         definition=f"The height you meet the ball on your {side_name}, relative to your body — between waist and shoulder gives the cleanest, most controllable strike.",
-        ai_focus="Finds the moment your hand is moving fastest (contact) and measures its height relative to your hips.",
+        ai_focus="Finds the moment you hit the ball and checks how high it is on your body.",
         fix_low=contact_fix,
         fix_high="Your contact height is right in the ideal zone for clean, powerful strikes.",
         value=_height_zone(ch), target="Waist to chest",
@@ -195,10 +258,10 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
     results["Extension Through Contact"] = metric_entry(
         ae_score,
         definition="How extended your hitting arm is at contact — a jammed, bent arm loses power and control.",
-        ai_focus="Measures your elbow angle (shoulder–elbow–wrist) in 3D at contact.",
+        ai_focus="Checks the bend in your hitting arm at the moment you hit the ball.",
         fix_low="Your arm looks jammed at contact. Adjust your spacing so the ball is a comfortable arm's length away, and drive through it.",
         fix_high="You're extending well through contact — that's giving the shot both power and control.",
-        value=_deg(ae), target=f"{extension_hi - 10}°+",
+        value=_by_score(ae_score, EXTEND_WORDS), target="Extended through the ball", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 60:
         tips.append(f"Your {side_name} looks jammed at contact. Give yourself more room to extend through the ball.")
@@ -208,10 +271,10 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
     results["Unit Turn / Rotation"] = metric_entry(
         tr_score,
         definition="How far your shoulders rotate from the backswing through contact — the body, not the arm, is the engine of the stroke.",
-        ai_focus="Tracks the direction your shoulder line faces in 3D through the swing and measures the total turn.",
+        ai_focus="Watches how far your shoulders turn from the backswing through contact.",
         fix_low="Your unit turn looks incomplete. As soon as you read the ball, turn your hips and shoulders together — don't wait until the last second.",
         fix_high="Your unit turn is complete and early — that's giving your swing a strong base to work from.",
-        value=_deg(tr), target="85°+",
+        value=_by_score(tr_score, TURN_WORDS), target="Full turn", detail=_detail(tr, "of shoulder turn"),
     )
     if tr_score is not None and tr_score < 50:
         tips.append(f"Your shoulder turn on the {side_name} is limited. Turn early and fully, then rotate through the ball.")
@@ -223,10 +286,10 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
     results["Knee Bend"] = metric_entry(
         kb_score,
         definition="How low you get through the shot — bent knees keep your base stable and your head still at contact.",
-        ai_focus="Tracks your knee angle (hip–knee–ankle) around contact and finds the lowest point.",
+        ai_focus="Watches your knees around the moment you hit the ball and finds your lowest point.",
         fix_low=NO_KNEE if kb is None else f"You're playing too upright on your {side_name}. Bend your knees more to lower your center of gravity and stay balanced through contact.",
         fix_high="Your footwork and balance are solid — you're staying low and stable through the shot.",
-        value=_deg(kb), target="≤ 125°",
+        value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
         tips.append(f"You appear upright on the {side_name}. Bend your knees to stay low and balanced through the shot.")
@@ -264,10 +327,10 @@ def rally_feedback(m):
     results["Athletic Stance"] = metric_entry(
         kb_score,
         definition="How low you stay through your shots in the rally — a lower stance lets you push off quickly in any direction.",
-        ai_focus="Tracks your knee angle around each shot in the rally and averages the lowest points.",
+        ai_focus="Watches how low you get around every shot in the rally.",
         fix_low=NO_KNEE if kb is None else "Your stance is too upright. Stay on the balls of your feet with knees bent so you can react and change direction faster.",
         fix_high="Your stance is athletic and ready — that's helping you react quickly between shots.",
-        value=_deg(kb), target="≤ 120°",
+        value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
         tips.append("Your stance looks too upright. Stay on the balls of your feet with knees bent so you can react faster.")
@@ -277,10 +340,10 @@ def rally_feedback(m):
     results["Body Rotation"] = metric_entry(
         tr_score,
         definition="How much your shoulders rotate into each shot, showing whether you're using your whole body or just your arm.",
-        ai_focus="Tracks your shoulder-line rotation in 3D through every swing in the rally.",
+        ai_focus="Watches how far your shoulders turn on every swing in the rally.",
         fix_low="You're relying on your arm rather than your body. Rotate your hips and shoulders into each shot for more consistent power.",
         fix_high="You're rotating your body well into each shot — that's a repeatable power source.",
-        value=_deg(tr), target="75°+",
+        value=_by_score(tr_score, TURN_WORDS), target="Full turn", detail=_detail(tr, "of shoulder turn"),
     )
     if tr_score is not None and tr_score < 50:
         tips.append("Work on rotating your whole body into shots rather than just swinging with your arm.")
@@ -290,10 +353,10 @@ def rally_feedback(m):
     results["Swing Extension"] = metric_entry(
         ae_score,
         definition="How extended your hitting arm is at contact across the rally, reflecting whether you're driving through the ball or getting jammed.",
-        ai_focus="Measures your elbow angle at contact on every swing in the rally.",
+        ai_focus="Checks the bend in your hitting arm on every swing in the rally.",
         fix_low="Your swings are getting jammed during the rally. Work on spacing — move so the ball arrives a comfortable arm's length away.",
         fix_high="You're extending well through your shots — that's a sign of controlled, repeatable power.",
-        value=_deg(ae), target="140°+",
+        value=_by_score(ae_score, EXTEND_WORDS), target="Extended through the ball", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 50:
         tips.append("Your swings are getting jammed during the rally. Focus on spacing so you can drive through each ball.")
@@ -326,7 +389,7 @@ def generate_feedback(metrics, shot_type='serve'):
 
     # Overall score = average of available metric scores
     valid = [v["score"] for v in scores.values() if v["score"] is not None]
-    overall = round(sum(valid) / len(valid), 1) if valid else None
+    overall = round(sum(valid) / len(valid)) if valid else None
 
     return {
         "scores": scores,

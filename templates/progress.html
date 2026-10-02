@@ -117,7 +117,7 @@
                         <span class="metric-label label-{{ (item['overall_label'] or 'na') | lower | replace(' ', '-') | replace('/', '') }}">{{ item['overall_label'] }}</span>
                     </div>
 
-                    <div class="progress-score">{{ item['overall_score'] }}</div>
+                    <div class="progress-score">{{ item['overall_score'] | round | int if item['overall_score'] is not none else '—' }}</div>
                     <span class="metric-score">{{ item['created_at'] | nicedate }}</span>
                     <label class="cmp-pick"><input type="checkbox" value="{{ item['id'] }}" data-shot="{{ item['shot_type'] }}"> Compare</label>
 
@@ -140,7 +140,7 @@
                                             style="width: {{ data.score or 0 }}%; background: {{ '#5B9B23' if (data.score or 0) >= 80 else ('#C8811E' if (data.score or 0) >= 60 else '#C8362B') }}"
                                         ></div>
                                     </div>
-                                    <span class="metric-score">{{ data.score or 'N/A' }} / 100{% if data.value %} · {{ data.value }}{% endif %}{% if data.target %} <span style="opacity:.75">(target {{ data.target }})</span>{% endif %}</span>
+                                    <span class="metric-score"{% if data.detail %} title="{{ data.detail }}"{% endif %}>{% if data.value %}{{ data.value }}{% elif data.score is none %}Not measured{% else %}{{ data.score | round | int }} / 100{% endif %}{% if data.target %} <span style="opacity:.75">· Pros: {{ data.target }}</span>{% endif %}</span>
                                 </div>
                                 {% endfor %}
                             </div>

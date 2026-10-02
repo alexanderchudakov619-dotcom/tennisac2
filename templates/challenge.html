@@ -61,7 +61,7 @@
         <div class="row {{ 'top' if loop.index <= 3 }}">
             <span class="rank">{{ loop.index }}</span>
             <span class="who">{{ r.challenge_name }}</span>
-            <span class="score">{{ r.overall_score }}</span>
+            <span class="score">{{ r.overall_score | round | int }}</span>
             <a href="{{ url_for('shared_card', token=r.token) }}">Breakdown →</a>
         </div>
         {% else %}

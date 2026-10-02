@@ -65,21 +65,21 @@
     <div class="overall">
         <div class="ov-side">
             <div class="ov-k">Before</div>
-            <div class="ov-num">{{ before.overall_score if before.overall_score is not none else '—' }}</div>
+            <div class="ov-num">{{ before.overall_score | round | int if before.overall_score is not none else '—' }}</div>
             <div class="ov-date">{{ before.created_at | nicedate }}</div>
         </div>
         {% if overall_delta is none %}
         <span class="delta-pill flat">—</span>
         {% elif overall_delta > 0 %}
-        <span class="delta-pill up">▲ {{ overall_delta }}</span>
+        <span class="delta-pill up">▲ {{ overall_delta | round | int }} pts</span>
         {% elif overall_delta < 0 %}
-        <span class="delta-pill down">▼ {{ -overall_delta }}</span>
+        <span class="delta-pill down">▼ {{ (-overall_delta) | round | int }} pts</span>
         {% else %}
         <span class="delta-pill flat">No change</span>
         {% endif %}
         <div class="ov-side">
             <div class="ov-k">After</div>
-            <div class="ov-num">{{ after.overall_score if after.overall_score is not none else '—' }}</div>
+            <div class="ov-num">{{ after.overall_score | round | int if after.overall_score is not none else '—' }}</div>
             <div class="ov-date">{{ after.created_at | nicedate }}</div>
         </div>
     </div>
@@ -91,12 +91,12 @@
         {% for m in metrics %}
         <div class="cmp-row">
             <span class="cmp-name">{{ m.name }}</span>
-            <span class="cmp-val"><span class="s">{{ m.before.score if m.before.score is not none else 'N/A' }}</span>{% if m.before.value %}<span class="v">{{ m.before.value }}</span>{% endif %}</span>
-            <span class="cmp-val"><span class="s">{{ m.after.score if m.after.score is not none else 'N/A' }}</span>{% if m.after.value %}<span class="v">{{ m.after.value }}</span>{% endif %}</span>
+            <span class="cmp-val"{% if m.before.detail %} title="{{ m.before.detail }}"{% endif %}><span class="s">{{ m.before.value or m.before.label or '—' }}</span></span>
+            <span class="cmp-val"{% if m.after.detail %} title="{{ m.after.detail }}"{% endif %}><span class="s">{{ m.after.value or m.after.label or '—' }}</span></span>
             {% if m.delta is none %}<span class="cmp-delta flat">—</span>
-            {% elif m.delta > 0 %}<span class="cmp-delta up">+{{ m.delta }}</span>
-            {% elif m.delta < 0 %}<span class="cmp-delta down">{{ m.delta }}</span>
-            {% else %}<span class="cmp-delta flat">0</span>{% endif %}
+            {% elif m.delta >= 1 %}<span class="cmp-delta up">Better</span>
+            {% elif m.delta <= -1 %}<span class="cmp-delta down">Worse</span>
+            {% else %}<span class="cmp-delta flat">Same</span>{% endif %}
         </div>
         {% endfor %}
     </div>

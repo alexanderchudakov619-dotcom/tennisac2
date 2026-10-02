@@ -80,7 +80,7 @@
         <div class="metric-row">
           <span class="name">{{ name }}</span>
           <span class="bar"><span style="width:{{ sc }}%;background:{{ '#5B9B23' if sc >= 80 else ('#C8811E' if sc >= 60 else '#C8362B') }}"></span></span>
-          <span class="val">{{ data.score if data.score is not none else 'N/A' }}</span>
+          <span class="val">{{ data.value or data.label or '—' }}</span>
         </div>
         {% endfor %}
       </div>

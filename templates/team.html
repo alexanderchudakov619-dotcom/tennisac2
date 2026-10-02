@@ -87,11 +87,11 @@
                         <td class="cell-muted">{{ p.utr or '—' }}</td>
                         <td class="num">{{ p.analyses }}</td>
                         <td class="num">{{ p.point_plays }}</td>
-                        <td class="num">{% if p.latest %}{{ p.latest.overall_score }} <span class="cell-muted">{{ p.latest.shot_type }}</span>{% else %}<span class="cell-muted">—</span>{% endif %}</td>
+                        <td class="num">{% if p.latest %}{{ p.latest.overall_score | round | int }} <span class="cell-muted">{{ p.latest.shot_type }}</span>{% else %}<span class="cell-muted">—</span>{% endif %}</td>
                         <td class="num">
                             {% if p.trend is none %}<span class="cell-muted" title="Needs 4+ analyses">—</span>
-                            {% elif p.trend > 0 %}<span class="trend-up">▲ {{ p.trend }}</span>
-                            {% elif p.trend < 0 %}<span class="trend-down">▼ {{ -p.trend }}</span>
+                            {% elif p.trend > 0 %}<span class="trend-up">▲ {{ p.trend | round | int }} pts</span>
+                            {% elif p.trend < 0 %}<span class="trend-down">▼ {{ (-p.trend) | round | int }} pts</span>
                             {% else %}<span class="cell-muted">0</span>{% endif %}
                         </td>
                         <td class="cell-muted">{{ p.last_active | nicedate if p.last_active else 'No analyses yet' }}</td>

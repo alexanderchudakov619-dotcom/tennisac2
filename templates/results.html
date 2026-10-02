@@ -110,7 +110,7 @@
           />
         </svg>
         <div class="score-text">
-          <span class="score-num">{{ feedback.overall_score or '—' }}</span>
+          <span class="score-num">{{ feedback.overall_score | round | int if feedback.overall_score is not none else '—' }}</span>
           <span class="score-denom">/100</span>
           <span class="score-lbl">{{ feedback.overall_label }}</span>
         </div>
@@ -136,11 +136,11 @@
               style="width: {{ data.score or 0 }}%; background: {{ '#5B9B23' if (data.score or 0) >= 80 else ('#C8811E' if (data.score or 0) >= 60 else '#C8362B') }}"
             ></div>
           </div>
-          <span class="metric-score">{{ data.score or 'N/A' }} / 100</span>
+          {% if data.score is none %}<span class="metric-score">Not measured in this clip</span>{% endif %}
           {% if data.value or data.target %}
           <div class="metric-vt">
-            {% if data.value %}<span><span class="k">You</span> {{ data.value }}</span>{% endif %}
-            {% if data.target %}<span><span class="k">Tour-level target</span> {{ data.target }}</span>{% endif %}
+            {% if data.value %}<span{% if data.detail %} title="{{ data.detail }}"{% endif %}><span class="k">You</span> {{ data.value }}</span>{% endif %}
+            {% if data.target %}<span><span class="k">Pros</span> {{ data.target }}</span>{% endif %}
           </div>
           {% endif %}
           <div class="metric-details">

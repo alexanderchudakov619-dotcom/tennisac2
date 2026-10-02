@@ -41,31 +41,31 @@
           <div class="physics-card">
             <div class="physics-shot-label">Shot {{ loop.index }}{% if shot.swing %} · Your {{ shot.swing.shot_type }}{% if shot.swing.two_handed %} (two-handed){% endif %}{% endif %}</div>
             {% if shot.speed_mph.available %}
-            <div class="physics-stat"><span class="physics-stat-label">Speed</span><span class="physics-stat-value">{{ shot.speed_mph.value }} mph</span></div>
+            <div class="physics-stat"><span class="physics-stat-label">Speed</span><span class="physics-stat-value">{{ shot.speed_mph.value | round | int }} mph</span></div>
             {% endif %}
             {% if shot.spin.available %}
             <div class="physics-stat" title="{{ shot.spin.note }}"><span class="physics-stat-label">Spin</span><span class="physics-stat-value">{{ shot.spin.type }}</span></div>
             {% endif %}
             {% if shot.swing %}
             {% if shot.swing.path.available %}
-            <div class="physics-stat"><span class="physics-stat-label">Swing path</span><span class="physics-stat-value">{{ shot.swing.path.label }} ({{ shot.swing.path.angle_deg }}°)</span></div>
+            <div class="physics-stat"><span class="physics-stat-label">Swing path</span><span class="physics-stat-value" title="{{ shot.swing.path.angle_deg }}° upward at contact">{{ shot.swing.path.label }}</span></div>
             {% endif %}
             {% if shot.swing.roll.available %}
             <div class="physics-stat"><span class="physics-stat-label">Forearm roll</span><span class="physics-stat-value">{{ shot.swing.roll.label }}</span></div>
             {% endif %}
             {% if shot.swing.hand_speed_mph.available %}
-            <div class="physics-stat" title="{{ shot.swing.hand_speed_mph.note }}"><span class="physics-stat-label">Hand speed</span><span class="physics-stat-value">{{ shot.swing.hand_speed_mph.value }} mph</span></div>
+            <div class="physics-stat" title="{{ shot.swing.hand_speed_mph.note }}"><span class="physics-stat-label">Hand speed</span><span class="physics-stat-value">{{ shot.swing.hand_speed_mph.value | round | int }} mph</span></div>
             {% endif %}
             <div class="physics-stat"><span class="physics-stat-label">Contact</span><span class="physics-stat-value">{{ shot.swing.contact_height }}</span></div>
             {% endif %}
             {% if shot.depth.available %}
-            <div class="physics-stat"><span class="physics-stat-label">Depth</span><span class="physics-stat-value">{{ shot.depth.label }} ({{ shot.depth.from_baseline_ft }} ft from baseline)</span></div>
+            <div class="physics-stat"><span class="physics-stat-label">Depth</span><span class="physics-stat-value">{{ shot.depth.label }} ({{ shot.depth.from_baseline_ft | round | int }} ft from baseline)</span></div>
             {% endif %}
             {% if shot.height.available %}
             <div class="physics-stat"><span class="physics-stat-label">Net clearance</span><span class="physics-stat-value">{{ shot.height.net_clearance_ft }} ft</span></div>
             {% endif %}
             {% if shot.heaviness.available %}
-            <div class="physics-stat"><span class="physics-stat-label">Heaviness</span><span class="physics-stat-value">{{ shot.heaviness.score }}/100</span></div>
+            <div class="physics-stat"><span class="physics-stat-label">Ball weight</span><span class="physics-stat-value" title="Heaviness index {{ shot.heaviness.score }}/100 — speed plus topspin">{% if shot.heaviness.score >= 70 %}Heavy{% elif shot.heaviness.score >= 45 %}Medium{% else %}Light{% endif %}</span></div>
             {% endif %}
           </div>
           {% endif %}
