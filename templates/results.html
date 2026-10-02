@@ -68,6 +68,8 @@
     .share-sub{color:var(--muted);font-size:13.5px;margin-top:2px}
     .btn-share{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:11px 22px;cursor:pointer;transition:transform .15s}
     .btn-share:hover{transform:translateY(-1px)}
+    .challenge-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px;margin-top:12px}
+    .btn-outline{background:#fff;color:var(--accent);border:1.5px solid var(--accent)}
     .share-status{color:var(--muted);font-size:13px;text-align:right;min-height:18px;margin-top:8px}
 
     .signup-pitch{padding:24px 0 60px}
@@ -182,6 +184,15 @@
         </button>
       </div>
       <p class="share-status" id="shareStatus" aria-live="polite"></p>
+      {% if user and shot_type in ('serve', 'forehand', 'backhand') and feedback.overall_score is not none %}
+      <form method="POST" action="{{ url_for('enter_challenge', token=card_token) }}" class="challenge-card">
+        <div>
+          <p class="share-title">#TennisAC{{ shot_type | capitalize }}Challenge</p>
+          <p class="share-sub">Put this {{ shot_type }} on the public leaderboard (first name and last initial only).</p>
+        </div>
+        <button type="submit" class="btn-share btn-outline">Enter challenge</button>
+      </form>
+      {% endif %}
     </div>
   </section>
   {% endif %}

@@ -45,6 +45,14 @@
     .metric-bar-fill{height:100%;border-radius:99px}
     .breakdown-empty{color:var(--muted-3);font-size:12.5px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-soft)}
 
+    .cmp-pick{display:inline-flex;align-items:center;gap:6px;float:right;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none}
+    .cmp-pick input{accent-color:var(--accent);width:15px;height:15px}
+    .cmp-bar{position:fixed;left:50%;bottom:20px;transform:translate(-50%,140%);transition:transform .25s cubic-bezier(.16,1,.3,1);
+      display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;border-radius:999px;padding:10px 10px 10px 20px;box-shadow:0 14px 34px -12px rgba(0,0,0,.45);z-index:20;max-width:calc(100vw - 32px)}
+    .cmp-bar.show{transform:translate(-50%,0)}
+    .cmp-bar span{font-size:14px}
+    .cmp-bar a{background:var(--accent);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:9px 16px;border-radius:999px;white-space:nowrap}
+
     .empty-card{padding:44px;text-align:center}
     .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
   </style>
@@ -61,6 +69,8 @@
           <div class="nav-avatar">{{ (user['name'] or '?')[0]|upper }}</div>
           <span class="name">{{ user['name'] }}</span>
         </div>
+        {% if team %}<a class="nav-link" href="{{ url_for('team_detail', team_id=team.id) }}">← {{ team.name }}</a>{% endif %}
+        <a class="nav-link" href="{{ url_for('teams') }}">Teams</a>
         <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
         <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
     </div>
@@ -68,9 +78,15 @@
 
 <section class="results-hero">
     <div class="wrap">
+        {% if player.id != user.id %}
+        <p class="eyebrow">{{ team.name }} · Coach View</p>
+        <h1 class="results-title">{{ player.name }}</h1>
+        <p class="hero-desc">{% if player.utr %}UTR {{ player.utr }} · {% endif %}Every analysis {{ player.name.split()[0] }} has saved. Tick two to compare them.</p>
+        {% else %}
         <p class="eyebrow">Your Development</p>
         <h1 class="results-title">My Progress</h1>
-        <p class="hero-desc">Track your saved shot analyses and watch your game improve over time.</p>
+        <p class="hero-desc">Track your saved shot analyses and watch your game improve over time. Tick two to compare them.</p>
+        {% endif %}
     </div>
 </section>
 
@@ -85,7 +101,8 @@
                     </div>
 
                     <div class="progress-score">{{ item['overall_score'] }}</div>
-                    <span class="metric-score">{{ item['created_at'] }}</span>
+                    <span class="metric-score">{{ item['created_at'] | nicedate }}</span>
+                    <label class="cmp-pick"><input type="checkbox" value="{{ item['id'] }}" data-shot="{{ item['shot_type'] }}"> Compare</label>
 
                     {% if item['scores'] %}
                         <button type="button" class="breakdown-toggle" onclick="this.closest('.progress-card').classList.toggle('open')">
@@ -106,7 +123,7 @@
                                             style="width: {{ data.score or 0 }}%; background: {{ '#5B9B23' if (data.score or 0) >= 80 else ('#C8811E' if (data.score or 0) >= 60 else '#C8362B') }}"
                                         ></div>
                                     </div>
-                                    <span class="metric-score">{{ data.score or 'N/A' }} / 100</span>
+                                    <span class="metric-score">{{ data.score or 'N/A' }} / 100{% if data.value %} · {{ data.value }}{% endif %}{% if data.target %} <span style="opacity:.75">(target {{ data.target }})</span>{% endif %}</span>
                                 </div>
                                 {% endfor %}
                             </div>
@@ -130,6 +147,36 @@
     <p>© 2026 TennisAC — Built for players who want to get better.</p>
   </footer>
 
+  <div class="cmp-bar" id="cmpBar" role="status">
+    <span id="cmpText">Pick one more to compare</span>
+    <a href="#" id="cmpGo" hidden>Compare →</a>
+  </div>
+
   <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+  <script>
+    (() => {
+      const boxes = [...document.querySelectorAll('.cmp-pick input')];
+      const bar = document.getElementById('cmpBar'), text = document.getElementById('cmpText'), go = document.getElementById('cmpGo');
+      const update = () => {
+        const picked = boxes.filter(b => b.checked);
+        bar.classList.toggle('show', picked.length > 0);
+        go.hidden = picked.length !== 2;
+        if (picked.length === 2) {
+          const same = picked[0].dataset.shot === picked[1].dataset.shot;
+          text.textContent = same ? 'Before & after, ready' : 'Different shots — overall scores only';
+          go.href = '/compare?a=' + picked[0].value + '&b=' + picked[1].value;
+        } else {
+          text.textContent = 'Pick one more to compare';
+        }
+      };
+      boxes.forEach(b => b.addEventListener('change', () => {
+        // Keep at most two picked: unticking the oldest pick.
+        if (b.checked && boxes.filter(x => x.checked).length > 2) {
+          boxes.find(x => x.checked && x !== b).checked = false;
+        }
+        update();
+      }));
+    })();
+  </script>
 </body>
 </html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — {{ team.name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(16px,5vw,48px)}
+    .results-hero{text-align:center;padding:64px 0 30px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7.5vw,72px);letter-spacing:-.02em;line-height:.92;margin:0 0 18px}
+
+    .code-card{display:inline-flex;flex-direction:column;align-items:center;gap:4px;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:16px 28px}
+    .code-k{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-3)}
+    .code-v{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:40px;letter-spacing:.18em;color:var(--accent);line-height:1}
+    .code-hint{color:var(--muted);font-size:13px}
+
+    .table-section{padding:28px 0 90px}
+    .table-card{background:#fff;border:1px solid var(--border-soft);border-radius:18px;overflow:hidden;box-shadow:0 16px 36px -24px rgba(120,50,0,.3)}
+    .table-scroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:760px}
+    th,td{text-align:left;padding:15px 18px;white-space:nowrap}
+    thead th{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-3);border-bottom:1px solid var(--border-soft);background:rgba(255,80,0,.03)}
+    tbody tr{border-bottom:1px solid var(--border-soft)}
+    tbody tr:last-child{border-bottom:none}
+    td.num{font-variant-numeric:tabular-nums}
+    .cell-name{font-weight:600;color:var(--ink)}
+    .cell-muted{color:var(--muted-3);font-size:13.5px}
+    .trend-up{color:var(--good);font-weight:700}
+    .trend-down{color:var(--bad);font-weight:700}
+    a.view{color:var(--accent);font-weight:700;text-decoration:none}
+    button.remove{font:inherit;font-size:12.5px;color:var(--muted-3);background:none;border:0;cursor:pointer;text-decoration:underline}
+    .empty-card{padding:44px;text-align:center;color:var(--muted);line-height:1.6}
+    .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px;color:var(--ink)}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Coach Mode</div>
+    </div>
+    <div class="nav-right">
+        <a class="nav-link" href="{{ url_for('teams') }}">All teams</a>
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Your Team</p>
+        <h1 class="results-title">{{ team.name }}</h1>
+        <div class="code-card">
+            <span class="code-k">Team code</span>
+            <span class="code-v">{{ team.join_code }}</span>
+            <span class="code-hint">Players enter this under Teams → Join a team</span>
+        </div>
+    </div>
+</section>
+
+<section class="wrap table-section">
+    {% if players %}
+    <div class="table-card">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>UTR</th>
+                        <th>Analyses</th>
+                        <th>Latest</th>
+                        <th>Trend</th>
+                        <th>Last active</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in players %}
+                    <tr>
+                        <td><div class="cell-name">{{ p.name }}</div><div class="cell-muted">{{ p.email }}</div></td>
+                        <td class="cell-muted">{{ p.utr or '—' }}</td>
+                        <td class="num">{{ p.analyses }}</td>
+                        <td class="num">{% if p.latest %}{{ p.latest.overall_score }} <span class="cell-muted">{{ p.latest.shot_type }}</span>{% else %}<span class="cell-muted">—</span>{% endif %}</td>
+                        <td class="num">
+                            {% if p.trend is none %}<span class="cell-muted" title="Needs 4+ analyses">—</span>
+                            {% elif p.trend > 0 %}<span class="trend-up">▲ {{ p.trend }}</span>
+                            {% elif p.trend < 0 %}<span class="trend-down">▼ {{ -p.trend }}</span>
+                            {% else %}<span class="cell-muted">0</span>{% endif %}
+                        </td>
+                        <td class="cell-muted">{{ p.last_active | nicedate if p.last_active else 'No analyses yet' }}</td>
+                        <td>
+                            <a class="view" href="{{ url_for('team_player', team_id=team.id, player_id=p.id) }}">View →</a>
+                            <form method="POST" action="{{ url_for('remove_player', team_id=team.id, player_id=p.id) }}" style="display:inline;margin-left:14px"
+                                  data-msg="Remove {{ p.name }} from {{ team.name }}?" onsubmit="return confirm(this.dataset.msg)">
+                                <button class="remove" type="submit">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <p class="cell-muted" style="margin-top:12px">Trend compares each player's last 3 scores with the 3 before them.</p>
+    {% else %}
+    <div class="table-card empty-card">
+        <h2>No players yet</h2>
+        <p>Share the code <strong>{{ team.join_code }}</strong> with your players. Once they join, their analyses show up here.</p>
+    </div>
+    {% endif %}
+</section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

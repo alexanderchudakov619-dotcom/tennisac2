@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Before &amp; After</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:900px;margin:0 auto;padding:0 clamp(16px,5vw,32px)}
+    .results-hero{text-align:center;padding:56px 0 26px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(38px,7vw,64px);letter-spacing:-.02em;line-height:.92;margin:0 0 10px}
+    .hero-desc{color:var(--muted);font-size:15px}
+
+    .overall{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;background:#fff;border:1px solid var(--border-soft);border-radius:20px;padding:22px;margin:10px 0 22px}
+    .ov-side{text-align:center}
+    .ov-k{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-3)}
+    .ov-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+    .ov-date{color:var(--muted-3);font-size:12.5px}
+    .delta-pill{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;padding:8px 16px;border-radius:999px;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .up{background:var(--good-bg);color:var(--good)}
+    .down{background:var(--bad-bg);color:var(--bad)}
+    .flat{background:var(--border-soft);color:var(--muted)}
+
+    .cmp-list{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:6px 20px;margin-bottom:60px}
+    .cmp-row{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:12px;align-items:center;padding:14px 0;border-top:1px solid var(--border-soft);font-size:14px}
+    .cmp-row:first-child{border-top:none}
+    .cmp-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-3)}
+    .cmp-name{font-weight:600;color:var(--ink)}
+    .cmp-val .s{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+    .cmp-val .v{display:block;color:var(--muted-3);font-size:12.5px;margin-top:2px}
+    .cmp-delta{font-weight:700;font-variant-numeric:tabular-nums;min-width:4em;text-align:right}
+    .cmp-delta.up,.cmp-delta.down,.cmp-delta.flat{background:none}
+    @media(max-width:560px){
+      .cmp-row{grid-template-columns:1fr 1fr auto}
+      .cmp-name{grid-column:1 / -1}
+      .cmp-head .hide-sm{display:none}
+    }
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-right">
+        <a class="nav-link" href="javascript:history.back()">← Back</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">{{ after.shot_type | title }} · Before &amp; After</p>
+        <h1 class="results-title">{% if player.id == user.id %}Your Progress{% else %}{{ player.name }}{% endif %}</h1>
+        <p class="hero-desc">{{ before.created_at | nicedate }} → {{ after.created_at | nicedate }}</p>
+        {% if before.shot_type != after.shot_type %}
+        <p class="hero-desc" style="margin-top:6px">Heads up: these are different shots ({{ before.shot_type }} vs {{ after.shot_type }}), so only overall scores line up.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="wrap">
+    <div class="overall">
+        <div class="ov-side">
+            <div class="ov-k">Before</div>
+            <div class="ov-num">{{ before.overall_score if before.overall_score is not none else '—' }}</div>
+            <div class="ov-date">{{ before.created_at | nicedate }}</div>
+        </div>
+        {% if overall_delta is none %}
+        <span class="delta-pill flat">—</span>
+        {% elif overall_delta > 0 %}
+        <span class="delta-pill up">▲ {{ overall_delta }}</span>
+        {% elif overall_delta < 0 %}
+        <span class="delta-pill down">▼ {{ -overall_delta }}</span>
+        {% else %}
+        <span class="delta-pill flat">No change</span>
+        {% endif %}
+        <div class="ov-side">
+            <div class="ov-k">After</div>
+            <div class="ov-num">{{ after.overall_score if after.overall_score is not none else '—' }}</div>
+            <div class="ov-date">{{ after.created_at | nicedate }}</div>
+        </div>
+    </div>
+
+    <div class="cmp-list">
+        <div class="cmp-row cmp-head">
+            <span class="hide-sm">Metric</span><span>Before</span><span>After</span><span style="text-align:right">Change</span>
+        </div>
+        {% for m in metrics %}
+        <div class="cmp-row">
+            <span class="cmp-name">{{ m.name }}</span>
+            <span class="cmp-val"><span class="s">{{ m.before.score if m.before.score is not none else 'N/A' }}</span>{% if m.before.value %}<span class="v">{{ m.before.value }}</span>{% endif %}</span>
+            <span class="cmp-val"><span class="s">{{ m.after.score if m.after.score is not none else 'N/A' }}</span>{% if m.after.value %}<span class="v">{{ m.after.value }}</span>{% endif %}</span>
+            {% if m.delta is none %}<span class="cmp-delta flat">—</span>
+            {% elif m.delta > 0 %}<span class="cmp-delta up">+{{ m.delta }}</span>
+            {% elif m.delta < 0 %}<span class="cmp-delta down">{{ m.delta }}</span>
+            {% else %}<span class="cmp-delta flat">0</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

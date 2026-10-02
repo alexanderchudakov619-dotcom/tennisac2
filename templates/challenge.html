@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — {{ shot | capitalize }} Challenge</title>
+  <meta property="og:title" content="#TennisAC{{ shot | capitalize }}Challenge leaderboard" />
+  <meta property="og:description" content="Upload your {{ shot }}, get it scored by TennisAC, and see where you rank." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:720px;margin:0 auto;padding:0 clamp(16px,5vw,32px)}
+    .results-hero{text-align:center;padding:56px 0 26px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(34px,7vw,60px);letter-spacing:-.02em;line-height:.95;margin:0 0 12px;overflow-wrap:anywhere}
+    .hero-desc{color:var(--muted);font-size:15px;line-height:1.6}
+
+    .tabs{display:flex;justify-content:center;gap:8px;margin:6px 0 22px;flex-wrap:wrap}
+    .tabs a{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:var(--muted);border:1px solid var(--border-soft);background:#fff;border-radius:999px;padding:8px 16px}
+    .tabs a.on{color:#fff;background:var(--accent);border-color:var(--accent)}
+
+    .board{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:6px 20px;margin-bottom:24px}
+    .row{display:grid;grid-template-columns:2.6em 1fr auto auto;gap:14px;align-items:center;padding:13px 0;border-top:1px solid var(--border-soft)}
+    .row:first-child{border-top:none}
+    .rank{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:var(--muted-3);font-variant-numeric:tabular-nums}
+    .row.top .rank{color:var(--accent)}
+    .who{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .score{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:var(--ink);font-variant-numeric:tabular-nums}
+    .row a{color:var(--accent);font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
+    .empty{text-align:center;color:var(--muted);padding:34px 10px;line-height:1.6}
+    .cta{text-align:center;padding:10px 0 60px}
+    .cta p{color:var(--muted);font-size:14px;margin-bottom:16px}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    <div class="nav-right">
+        {% if user %}<a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>{% else %}<a class="nav-link" href="/login">Sign In</a>{% endif %}
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Leaderboard</p>
+        <h1 class="results-title">#TennisAC{{ shot | capitalize }}Challenge</h1>
+        <p class="hero-desc">Upload your {{ shot }}, get it scored on real mechanics, and enter it from your results page. Best score per player counts.</p>
+    </div>
+</section>
+
+<section class="wrap">
+    <div class="tabs">
+        {% for s in shots %}<a href="{{ url_for('challenge', shot=s) }}" class="{{ 'on' if s == shot }}">{{ s | capitalize }}</a>{% endfor %}
+    </div>
+
+    <div class="board">
+        {% for r in board %}
+        <div class="row {{ 'top' if loop.index <= 3 }}">
+            <span class="rank">{{ loop.index }}</span>
+            <span class="who">{{ r.challenge_name }}</span>
+            <span class="score">{{ r.overall_score }}</span>
+            <a href="{{ url_for('shared_card', token=r.token) }}">Breakdown →</a>
+        </div>
+        {% else %}
+        <p class="empty">No entries yet — be the first {{ shot }} on the board.</p>
+        {% endfor %}
+    </div>
+
+    <div class="cta">
+        {% if user %}
+        <p>Analyze a {{ shot }}, then hit "Enter challenge" on your results.</p>
+        <a href="/#analyze" class="btn-cta">Analyze my {{ shot }} →</a>
+        {% else %}
+        <p>Entering takes a free account so your name can go on the board.</p>
+        <a href="/signup" class="btn-cta">Create free account →</a>
+        {% endif %}
+    </div>
+</section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

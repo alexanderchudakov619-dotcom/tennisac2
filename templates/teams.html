@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Teams</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:1000px;margin:0 auto;padding:0 clamp(16px,5vw,48px)}
+    .results-hero{text-align:center;padding:64px 0 36px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7.5vw,76px);letter-spacing:-.02em;line-height:.92;margin:0 0 14px}
+    .hero-desc{color:var(--muted);font-size:16px;max-width:520px;margin:0 auto;line-height:1.65}
+
+    .teams-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:90px}
+    @media(max-width:760px){.teams-grid{grid-template-columns:1fr}}
+    .team-panel{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:26px;box-shadow:0 16px 36px -24px rgba(120,50,0,.3)}
+    .team-panel h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;margin:0 0 6px}
+    .team-panel .sub{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:18px}
+    .row-form{display:flex;gap:10px}
+    .row-form input{flex:1;min-width:0;font:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border-soft);border-radius:12px;background:#fff;color:var(--ink)}
+    .row-form input.code{text-transform:uppercase;letter-spacing:.2em;font-weight:700}
+    .row-form button{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:12px;padding:12px 18px;cursor:pointer;white-space:nowrap}
+    .team-list{list-style:none;padding:0;margin:22px 0 0;border-top:1px solid var(--border-soft)}
+    .team-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-soft)}
+    .team-list .name{font-weight:600;color:var(--ink)}
+    .team-list .meta{color:var(--muted-3);font-size:13px;margin-top:2px}
+    .team-list a.open{color:var(--accent);font-weight:700;text-decoration:none;font-size:14px;white-space:nowrap}
+    .team-list button.leave{font:inherit;font-size:13px;color:var(--muted);background:none;border:1px solid var(--border-soft);border-radius:999px;padding:6px 12px;cursor:pointer}
+    .empty{color:var(--muted-3);font-size:13.5px;margin-top:18px}
+    .privacy{color:var(--muted-3);font-size:12.5px;margin-top:10px;line-height:1.5}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Teams</div>
+    </div>
+    <div class="nav-right">
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+        <a class="nav-link" href="{{ url_for('progress') }}">Progress</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Coach Mode</p>
+        <h1 class="results-title">Teams</h1>
+        <p class="hero-desc">Coaches create a team and share its code. Players join with the code, and their coach can follow every analysis they upload.</p>
+    </div>
+</section>
+
+<section class="wrap">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}<div class="flash-msg" style="max-width:640px;margin:0 auto 22px">{{ messages[0] }}</div>{% endif %}
+    {% endwith %}
+
+    <div class="teams-grid">
+        <div class="team-panel">
+            <h2>Coach a team</h2>
+            <p class="sub">Create a team, then give your players its code.</p>
+            <form class="row-form" method="POST" action="{{ url_for('create_team') }}">
+                <input name="name" placeholder="Team name, e.g. Match Point Juniors" maxlength="80" required>
+                <button type="submit">Create</button>
+            </form>
+            {% if coaching %}
+            <ul class="team-list">
+                {% for t in coaching %}
+                <li>
+                    <div>
+                        <div class="name">{{ t.name }}</div>
+                        <div class="meta">Code {{ t.join_code }} · {{ t.players }} player{{ '' if t.players == 1 else 's' }}</div>
+                    </div>
+                    <a class="open" href="{{ url_for('team_detail', team_id=t.id) }}">Open →</a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty">You're not coaching a team yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="team-panel">
+            <h2>Join a team</h2>
+            <p class="sub">Got a code from your coach? Enter it here.</p>
+            <form class="row-form" method="POST" action="{{ url_for('join_team') }}">
+                <input class="code" name="code" placeholder="ABC123" maxlength="10" autocomplete="off" required>
+                <button type="submit">Join</button>
+            </form>
+            <p class="privacy">Joining lets that team's coach see your analysis history. You can leave any time.</p>
+            {% if member_of %}
+            <ul class="team-list">
+                {% for t in member_of %}
+                <li>
+                    <div>
+                        <div class="name">{{ t.name }}</div>
+                        <div class="meta">Coach: {{ t.coach_name }}</div>
+                    </div>
+                    <form method="POST" action="{{ url_for('leave_team', team_id=t.id) }}">
+                        <button class="leave" type="submit">Leave</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty">You haven't joined a team.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

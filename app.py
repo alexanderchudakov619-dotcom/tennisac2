@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, g, has_request_context
 import os
 import uuid
+import secrets
 import hashlib
 import json
 import traceback
@@ -199,6 +200,31 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Challenge leaderboard: set when the owner enters this result (shown
+    # as first name + last initial); NULL means not entered.
+    db.execute('ALTER TABLE result_cards ADD COLUMN IF NOT EXISTS challenge_name TEXT')
+
+    # Coach mode: a coach owns a team; players join it with its code, which
+    # lets that coach see their analysis history.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS teams (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            coach_id INTEGER NOT NULL REFERENCES users(id),
+            join_code TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS team_members (
+            team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (team_id, user_id)
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id)')
 
     # One row per time someone shares their result — the core growth
     # metric is distinct shared cards per 100 cards delivered.
@@ -611,36 +637,226 @@ def point_play():
     return render_template('point_play.html', user=user)
 
 
-@app.route('/progress')
-def progress():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-
+def load_history(user_id):
+    """A player's saved analyses, newest first, each with its per-metric
+    breakdown (Contact Height, Arm Extension, etc.) parsed for display."""
     db = get_db()
     history = db.execute(
-        '''
-        SELECT *
-        FROM analysis_history
-        WHERE user_id = %s
-        ORDER BY created_at DESC
-        ''',
-        (user['id'],)
+        'SELECT * FROM analysis_history WHERE user_id = %s ORDER BY created_at DESC',
+        (user_id,)
     ).fetchall()
     db.close()
-
-    # Attach each session's saved metric breakdown (Contact Height, Arm Extension, etc.)
-    # so the Progress page can expand a past analysis and show it, not just the overall score.
-    history_with_scores = []
+    rows = []
     for item in history:
         row = dict(item)
         try:
             row['scores'] = json.loads(row['scores_json']) if row['scores_json'] else {}
         except (TypeError, ValueError):
             row['scores'] = {}
-        history_with_scores.append(row)
+        rows.append(row)
+    return rows
 
-    return render_template('progress.html', user=user, history=history_with_scores)
+@app.route('/progress')
+def progress():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    return render_template('progress.html', user=user, player=user, history=load_history(user['id']))
+
+# ── Coach mode ────────────────────────────────────────────────────────────
+
+JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  # no 0/O or 1/I mix-ups
+
+@app.template_filter('nicedate')
+def nicedate(value):
+    try:
+        return value.strftime('%b %-d, %Y')
+    except AttributeError:
+        return value or ''
+
+def can_view_player(db, viewer, player_id):
+    """A player's analyses are visible to themselves and to the coach of
+    any team they've joined."""
+    if viewer['id'] == player_id:
+        return True
+    return db.execute(
+        '''SELECT 1 FROM team_members m JOIN teams t ON t.id = m.team_id
+           WHERE m.user_id = %s AND t.coach_id = %s LIMIT 1''', (player_id, viewer['id'])
+    ).fetchone() is not None
+
+@app.route('/compare')
+def compare():
+    """Before/after: two analyses of the same player side by side, metric
+    by metric, so the effect of working on a fix is visible."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    try:
+        ids = [int(request.args['a']), int(request.args['b'])]
+    except (KeyError, ValueError):
+        abort(404)
+    db = get_db()
+    rows = db.execute('SELECT * FROM analysis_history WHERE id = ANY(%s)', (ids,)).fetchall()
+    if len(rows) != 2 or rows[0]['user_id'] != rows[1]['user_id'] or not can_view_player(db, user, rows[0]['user_id']):
+        db.close()
+        abort(404)
+    player = db.execute('SELECT * FROM users WHERE id = %s', (rows[0]['user_id'],)).fetchone()
+    db.close()
+    before, after = sorted((dict(r) for r in rows), key=lambda r: r['created_at'])
+    for r in (before, after):
+        try:
+            r['scores'] = json.loads(r['scores_json']) if r['scores_json'] else {}
+        except (TypeError, ValueError):
+            r['scores'] = {}
+    names = list(after['scores']) + [n for n in before['scores'] if n not in after['scores']]
+    metrics = []
+    for n in names:
+        b, a = before['scores'].get(n, {}), after['scores'].get(n, {})
+        delta = (round(a['score'] - b['score'], 1)
+                 if isinstance(a.get('score'), (int, float)) and isinstance(b.get('score'), (int, float)) else None)
+        metrics.append({'name': n, 'before': b, 'after': a, 'delta': delta})
+    overall_delta = (round(after['overall_score'] - before['overall_score'], 1)
+                     if after['overall_score'] is not None and before['overall_score'] is not None else None)
+    return render_template('compare.html', user=user, player=player, before=before, after=after,
+                           metrics=metrics, overall_delta=overall_delta)
+
+def coached_team(db, team_id, user):
+    return db.execute('SELECT * FROM teams WHERE id = %s AND coach_id = %s', (team_id, user['id'])).fetchone()
+
+@app.route('/teams')
+def teams():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    coaching = db.execute(
+        '''SELECT t.*, COUNT(m.user_id) AS players
+           FROM teams t LEFT JOIN team_members m ON m.team_id = t.id
+           WHERE t.coach_id = %s GROUP BY t.id ORDER BY t.created_at''', (user['id'],)
+    ).fetchall()
+    member_of = db.execute(
+        '''SELECT t.*, u.name AS coach_name
+           FROM team_members m JOIN teams t ON t.id = m.team_id JOIN users u ON u.id = t.coach_id
+           WHERE m.user_id = %s ORDER BY m.joined_at''', (user['id'],)
+    ).fetchall()
+    db.close()
+    return render_template('teams.html', user=user, coaching=coaching, member_of=member_of)
+
+@app.route('/teams/create', methods=['POST'])
+def create_team():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()[:80]
+    if not name:
+        flash('Give your team a name.')
+        return redirect(url_for('teams'))
+    db = get_db()
+    for _ in range(10):
+        code = ''.join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(6))
+        if not db.execute('SELECT 1 FROM teams WHERE join_code = %s', (code,)).fetchone():
+            break
+    team = db.execute('INSERT INTO teams (name, coach_id, join_code) VALUES (%s, %s, %s) RETURNING id',
+                      (name, user['id'], code)).fetchone()
+    db.commit()
+    db.close()
+    return redirect(url_for('team_detail', team_id=team['id']))
+
+@app.route('/teams/join', methods=['POST'])
+def join_team():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    code = ''.join(ch for ch in request.form.get('code', '').upper() if ch.isalnum())
+    db = get_db()
+    team = db.execute('SELECT * FROM teams WHERE join_code = %s', (code,)).fetchone()
+    if not team:
+        db.close()
+        flash("That team code didn't match a team. Check it with your coach and try again.")
+        return redirect(url_for('teams'))
+    db.execute('INSERT INTO team_members (team_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING',
+               (team['id'], user['id']))
+    db.commit()
+    db.close()
+    flash(f"You joined {team['name']}. Your coach can now see your analyses.")
+    return redirect(url_for('teams'))
+
+@app.route('/teams/<int:team_id>/leave', methods=['POST'])
+def leave_team(team_id):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    db.execute('DELETE FROM team_members WHERE team_id = %s AND user_id = %s', (team_id, user['id']))
+    db.commit()
+    db.close()
+    flash("You left the team. That coach can no longer see your analyses.")
+    return redirect(url_for('teams'))
+
+@app.route('/teams/<int:team_id>')
+def team_detail(team_id):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    team = coached_team(db, team_id, user)
+    if not team:
+        db.close()
+        abort(404)
+    roster = db.execute(
+        '''SELECT u.id, u.name, u.email, u.utr, m.joined_at,
+                  COUNT(a.id) AS analyses, MAX(a.created_at) AS last_active
+           FROM team_members m JOIN users u ON u.id = m.user_id
+           LEFT JOIN analysis_history a ON a.user_id = u.id
+           WHERE m.team_id = %s GROUP BY u.id, m.joined_at ORDER BY u.name''', (team_id,)
+    ).fetchall()
+    players = []
+    for r in roster:
+        p = dict(r)
+        recent = db.execute(
+            '''SELECT shot_type, overall_score FROM analysis_history
+               WHERE user_id = %s AND overall_score IS NOT NULL ORDER BY created_at DESC LIMIT 6''', (r['id'],)
+        ).fetchall()
+        p['latest'] = recent[0] if recent else None
+        # Trend: last three scores against the three before them.
+        if len(recent) >= 4:
+            new = [x['overall_score'] for x in recent[:3]]
+            old = [x['overall_score'] for x in recent[3:]]
+            p['trend'] = round(sum(new) / len(new) - sum(old) / len(old), 1)
+        else:
+            p['trend'] = None
+        players.append(p)
+    db.close()
+    return render_template('team.html', user=user, team=team, players=players)
+
+@app.route('/teams/<int:team_id>/players/<int:player_id>')
+def team_player(team_id, player_id):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    team = coached_team(db, team_id, user)
+    player = db.execute(
+        '''SELECT u.* FROM team_members m JOIN users u ON u.id = m.user_id
+           WHERE m.team_id = %s AND m.user_id = %s''', (team_id, player_id)
+    ).fetchone() if team else None
+    db.close()
+    if not player:
+        abort(404)
+    return render_template('progress.html', user=user, player=player, team=team,
+                           history=load_history(player_id))
+
+@app.route('/teams/<int:team_id>/players/<int:player_id>/remove', methods=['POST'])
+def remove_player(team_id, player_id):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    db = get_db()
+    if coached_team(db, team_id, user):
+        db.execute('DELETE FROM team_members WHERE team_id = %s AND user_id = %s', (team_id, player_id))
+        db.commit()
+    db.close()
+    return redirect(url_for('team_detail', team_id=team_id))
 
 @app.errorhandler(ServerBusy)
 def server_busy(e):
@@ -707,6 +923,42 @@ def log_share(token):
         db.commit()
     db.close()
     return ('', 204) if owner else ('', 403)
+
+CHALLENGE_SHOTS = ('serve', 'forehand', 'backhand')
+
+@app.route('/r/<token>/challenge', methods=['POST'])
+def enter_challenge(token):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('signup'))
+    parts = (user['name'] or 'Player').split()
+    display = parts[0] + (f" {parts[-1][0]}." if len(parts) > 1 else '')
+    db = get_db()
+    card = db.execute('SELECT * FROM result_cards WHERE token = %s AND user_id = %s', (token, user['id'])).fetchone()
+    if card and card['shot_type'] in CHALLENGE_SHOTS and card['overall_score'] is not None:
+        db.execute('UPDATE result_cards SET challenge_name = %s WHERE token = %s', (display, token))
+        db.commit()
+        db.close()
+        return redirect(url_for('challenge', shot=card['shot_type']))
+    db.close()
+    abort(404)
+
+@app.route('/challenge')
+def challenge():
+    """Public leaderboard — each entrant's best entered score per shot."""
+    shot = request.args.get('shot', 'serve')
+    if shot not in CHALLENGE_SHOTS:
+        shot = 'serve'
+    db = get_db()
+    board = db.execute(
+        '''SELECT DISTINCT ON (user_id) user_id, token, challenge_name, overall_score, created_at
+           FROM result_cards
+           WHERE challenge_name IS NOT NULL AND shot_type = %s AND overall_score IS NOT NULL
+           ORDER BY user_id, overall_score DESC, created_at''', (shot,)
+    ).fetchall()
+    db.close()
+    board = sorted(board, key=lambda r: (-r['overall_score'], r['created_at']))[:50]
+    return render_template('challenge.html', user=get_current_user(), shot=shot, shots=CHALLENGE_SHOTS, board=board)
 
 @app.route('/admin/users')
 def admin_users():
