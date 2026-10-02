@@ -14,6 +14,8 @@ e.g. hand speed, not a made-up racket-head number.
 
 import math
 import os
+import sys
+import traceback
 import cv2
 import numpy as np
 
@@ -45,15 +47,39 @@ FT_PER_SEC_TO_MPH = 3600.0 / 5280.0
 # Pose tracking
 # ---------------------------------------------------------------------
 
+VENDOR_GL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'vendor', 'gl')
+_gl_ready = False
+
+
+def _preload_gl_stubs():
+    """MediaPipe's Linux library won't even load without libGLESv2/libEGL,
+    which Render's servers lack. Load the bundled loader libraries (see
+    vendor/gl/README.md) globally first, so the dynamic linker finds them
+    by name when MediaPipe asks. Skipped wherever the system has its own."""
+    global _gl_ready
+    if _gl_ready or not sys.platform.startswith('linux'):
+        return
+    import ctypes
+    for name in ('libGLdispatch.so.0', 'libGLESv2.so.2', 'libEGL.so.1'):
+        try:
+            ctypes.CDLL(name, mode=ctypes.RTLD_GLOBAL)
+        except OSError:
+            ctypes.CDLL(os.path.join(VENDOR_GL_DIR, name), mode=ctypes.RTLD_GLOBAL)
+    _gl_ready = True
+
+
 def _load_landmarker():
-    """Returns a MediaPipe PoseLandmarker in video mode, or None when
-    MediaPipe or the model file isn't available — callers then fall back
-    to bounce-only spin instead of failing the whole analysis."""
+    """Returns a MediaPipe PoseLandmarker in video mode, or None when it
+    can't be started on this server — callers then carry on without body
+    tracking (bounce-only spin, a clear message for shot analysis)
+    instead of failing the whole request."""
     if not os.path.exists(MODEL_PATH):
         return None
     try:
+        _preload_gl_stubs()
         from mediapipe.tasks.python import BaseOptions, vision
-    except ImportError:
+    except Exception:
+        print("[TennisAC] Pose tracking unavailable:\n" + traceback.format_exc())
         return None
     options = vision.PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=MODEL_PATH),
@@ -64,7 +90,11 @@ def _load_landmarker():
         min_pose_detection_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-    return vision.PoseLandmarker.create_from_options(options)
+    try:
+        return vision.PoseLandmarker.create_from_options(options)
+    except Exception:
+        print("[TennisAC] Pose tracking unavailable:\n" + traceback.format_exc())
+        return None
 
 
 def _torso_len(p):
