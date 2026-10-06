@@ -88,17 +88,19 @@
     .analyse-hint{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-3)}
     .select-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-3);margin-bottom:16px}
 
-    .shot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:30px}
+    .shot-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:30px}
     .shot-option{position:relative;cursor:pointer;display:block}
     .shot-option input{position:absolute;opacity:0;pointer-events:none}
     .shot-card{
       position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:10px;
-      padding:26px 14px 22px;border-radius:20px;border:2px solid rgba(255,80,0,.1);background:#fff;
+      padding:10px 10px 20px;border-radius:20px;border:2px solid rgba(255,80,0,.1);background:#fff;
       box-shadow:0 2px 16px rgba(0,0,0,.05);transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,border-color .2s;
     }
     .shot-option:hover .shot-card{transform:translateY(-8px) scale(1.03)}
     .shot-watermark{position:absolute;bottom:-10px;right:2px;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:58px;color:rgba(0,0,0,.04);line-height:1;letter-spacing:-.04em;user-select:none}
-    .shot-check{position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;display:none;align-items:center;justify-content:center;color:#fff}
+    .shot-check{position:absolute;top:18px;right:18px;z-index:2;width:20px;height:20px;border-radius:50%;display:none;align-items:center;justify-content:center;color:#fff}
+    .shot-img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:13px;background:#0b0c0e;margin-bottom:4px;position:relative;z-index:1;transition:transform .4s ease}
+    .shot-option:hover .shot-img,.pp-card:hover .shot-img{transform:scale(1.02)}
     .shot-name{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);position:relative;z-index:1}
     .shot-sub{font-size:10.5px;color:var(--muted-3);line-height:1.5;text-align:center;position:relative;z-index:1}
     .shot-option[data-accent="serve"] input:checked ~ .shot-card{border-color:#FF5A00;background:linear-gradient(160deg,rgba(255,90,0,.1),rgba(255,90,0,.03))}
@@ -117,7 +119,7 @@
 
     .pp-card{
       position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-      padding:26px 14px 22px;border-radius:20px;border:2px solid rgba(200,56,0,.16);background:linear-gradient(160deg,rgba(200,56,0,.08),rgba(200,56,0,.02));
+      padding:10px 10px 20px;border-radius:20px;border:2px solid rgba(200,56,0,.16);background:linear-gradient(160deg,rgba(200,56,0,.08),rgba(200,56,0,.02));
       text-decoration:none;box-shadow:0 2px 16px rgba(0,0,0,.05);transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,border-color .2s;
     }
     .pp-card:hover{transform:translateY(-8px) scale(1.03);border-color:#C83800;box-shadow:0 16px 40px rgba(200,56,0,.22)}
@@ -128,7 +130,7 @@
     @media(max-width:960px){
       .stats-grid{grid-template-columns:repeat(2,1fr)}
       .steps-grid{grid-template-columns:1fr}
-      .shot-grid{grid-template-columns:repeat(2,1fr)}
+      .shot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
   </style>
 </head>
@@ -297,6 +299,7 @@
           <span class="shot-card">
             <span class="shot-watermark">01</span>
             <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <img class="shot-img" src="{{ url_for('static', filename='img/serve.jpg') }}" alt="" loading="lazy" />
             <span class="shot-name">Serve</span>
             <span class="shot-sub">First &amp; second serve</span>
           </span>
@@ -306,6 +309,7 @@
           <span class="shot-card">
             <span class="shot-watermark">02</span>
             <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <img class="shot-img" src="{{ url_for('static', filename='img/forehand.jpg') }}" alt="" loading="lazy" />
             <span class="shot-name">Forehand</span>
             <span class="shot-sub">Grip, swing &amp; follow-thru</span>
           </span>
@@ -315,6 +319,7 @@
           <span class="shot-card">
             <span class="shot-watermark">03</span>
             <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <img class="shot-img" src="{{ url_for('static', filename='img/backhand.jpg') }}" alt="" loading="lazy" />
             <span class="shot-name">Backhand</span>
             <span class="shot-sub">One or two-handed</span>
           </span>
@@ -324,12 +329,14 @@
           <span class="shot-card">
             <span class="shot-watermark">04</span>
             <span class="shot-check"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <img class="shot-img" src="{{ url_for('static', filename='img/rally.jpg') }}" alt="" loading="lazy" />
             <span class="shot-name">Rally</span>
             <span class="shot-sub">Movement &amp; positioning</span>
           </span>
         </label>
         <a href="/point-play" class="pp-card">
           <span class="shot-watermark">05</span>
+          <img class="shot-img" src="{{ url_for('static', filename='img/pointplay.jpg') }}" alt="" loading="lazy" />
           <span class="shot-name">Point Play</span>
           <span class="shot-sub">Full point breakdown</span>
           <span class="pp-arrow">Analyse →</span>
