@@ -206,18 +206,20 @@
     </div>
   </div>
 
-  <!-- STATS -->
+  {% if stats %}
+  <!-- STATS: live counts from the database (see site_stats in app.py) -->
   <section class="stats-section">
     <div class="rev">
       <p class="eyebrow">By the numbers</p>
       <div class="stats-grid">
-        <div class="stat-tile"><span class="stat-num" data-countup="10247">0</span><span class="stat-label">Shots analysed</span></div>
-        <div class="stat-tile hi"><span class="stat-num" data-countup="94" data-suffix="%">0</span><span class="stat-label">Accuracy rate</span></div>
-        <div class="stat-tile"><span class="stat-num" data-countup="3.2" data-decimals="1" data-suffix="s">0</span><span class="stat-label">Avg analysis</span></div>
-        <div class="stat-tile"><span class="stat-num" data-countup="6">0</span><span class="stat-label">Model players</span></div>
+        <div class="stat-tile"><span class="stat-num" data-countup="{{ stats.shots }}">0</span><span class="stat-label">Shots analysed</span></div>
+        <div class="stat-tile hi"><span class="stat-num" data-countup="{{ stats.points }}">0</span><span class="stat-label">Points broken down</span></div>
+        <div class="stat-tile"><span class="stat-num" data-countup="{{ stats.players }}">0</span><span class="stat-label">Players coached</span></div>
+        <div class="stat-tile"><span class="stat-num" data-countup="5">0</span><span class="stat-label">Ways to analyse</span></div>
       </div>
     </div>
   </section>
+  {% endif %}
 
   {% if user and not trial %}
   <!-- PROFILE -->

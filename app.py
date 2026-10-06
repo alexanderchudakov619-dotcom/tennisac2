@@ -6,6 +6,7 @@ import hashlib
 import json
 import traceback
 import threading
+import time
 from contextlib import contextmanager
 from datetime import timedelta
 import psycopg2
@@ -433,11 +434,38 @@ def keep_signed_in():
     if 'user_id' in session and not session.permanent:
         session.permanent = True
 
+_site_stats = {'at': 0, 'stats': None}
+
+def site_stats():
+    """Real usage counts for the homepage, cached for 10 minutes so every
+    visit doesn't hit the database. None if the database can't be reached —
+    the homepage then just leaves the numbers out."""
+    if time.time() - _site_stats['at'] < 600:
+        return _site_stats['stats']
+    try:
+        db = get_db()
+        row = db.execute(
+            '''
+            SELECT
+                (SELECT COUNT(*) FROM result_cards) AS shots,
+                (SELECT COUNT(*) FROM point_play_history) AS points,
+                (SELECT COUNT(*) FROM users) AS players
+            '''
+        ).fetchone()
+        db.close()
+        stats = dict(row)
+    except Exception:
+        app.logger.exception('Could not load homepage stats')
+        stats = None
+    _site_stats.update(at=time.time(), stats=stats)
+    return stats
+
 @app.route('/')
 def index():
     user = get_current_user()
     return render_template('index.html', user=user, trial=is_guest(user),
-                           is_admin=bool(user) and user['email'] == ADMIN_EMAIL)
+                           is_admin=bool(user) and user['email'] == ADMIN_EMAIL,
+                           stats=site_stats())
 
 @app.route('/try', methods=['GET', 'POST'])
 def try_free():
