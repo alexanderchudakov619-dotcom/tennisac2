@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Delete Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .auth-wrap{min-height:calc(100vh - 68px);display:flex;align-items:center;justify-content:center;padding:40px 20px;position:relative;overflow:hidden}
+    .auth-card{position:relative;z-index:1;width:100%;max-width:460px}
+    .auth-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(38px,6vw,52px);letter-spacing:-.02em;line-height:.95;margin:0}
+    .auth-sub{color:var(--muted);font-size:15px;line-height:1.6;margin-top:12px;margin-bottom:24px}
+    .auth-switch{color:var(--muted-3);font-size:13.5px;text-align:center;margin-top:24px}
+    .auth-switch a{color:var(--accent);text-decoration:none;font-weight:700}
+    .gone-list{margin:0 0 22px;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.7}
+    .gone-list strong{color:var(--ink);font-weight:600}
+    .coach-warn{background:var(--bad-bg);border:1px solid rgba(216,68,50,.4);color:var(--bad);font-size:13.5px;line-height:1.55;padding:13px 16px;border-radius:12px;margin-bottom:22px}
+    .btn-danger{display:block;width:100%;margin-top:22px;padding:15px 20px;border:0;border-radius:999px;background:var(--bad);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:filter .15s}
+    .btn-danger:hover{filter:brightness(1.08)}
+    .btn-danger:focus-visible{outline:2px solid var(--bad);outline-offset:3px}
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+    {% if not deleted %}<a href="/profile/edit" class="nav-link">← Back to profile</a>{% endif %}
+  </nav>
+
+  <section class="auth-wrap">
+    <div class="auth-card">
+      {% if deleted %}
+        <p class="eyebrow">Account deleted</p>
+        <h1 class="auth-title">All gone.</h1>
+        <p class="auth-sub">Your account and everything in it have been permanently deleted. Thanks for training with TennisAC. You're welcome back any time.</p>
+        <a href="/" class="btn-cta full">Back to the homepage</a>
+      {% else %}
+        <p class="eyebrow">Account</p>
+        <h1 class="auth-title">Delete your account</h1>
+        <p class="auth-sub">This permanently erases your TennisAC account. It can't be undone. Deleting removes:</p>
+
+        <ul class="gone-list">
+          <li><strong>Your account</strong>: name, email, password and tennis profile</li>
+          <li><strong>All your results</strong>: shot analyses, Point Play breakdowns and progress history</li>
+          <li><strong>Your shared result cards</strong>: share links will stop working, and any challenge entries are removed</li>
+          <li><strong>Your team memberships</strong>{% if coached %} and the teams you coach{% endif %}</li>
+        </ul>
+
+        {% if coached %}
+        <div class="coach-warn">
+          You coach {{ coached|length }} team{{ 's' if coached|length != 1 }}:
+          {% for t in coached %}<strong>{{ t.name }}</strong> ({{ t.players }} player{{ 's' if t.players != 1 }}){{ ', ' if not loop.last }}{% endfor %}.
+          {{ 'It' if coached|length == 1 else 'They' }} will be deleted too. Your players keep their own results but will no longer be on {{ 'the team' if coached|length == 1 else 'these teams' }}.
+        </div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}<div class="flash-msg">{{ messages[0] }}</div>{% endif %}
+        {% endwith %}
+
+        <div class="panel">
+          <form action="{{ url_for('delete_account') }}" method="POST">
+            <div class="field-group">
+              <label class="field-label" for="password">Enter your password to confirm</label>
+              <input type="password" name="password" id="password" class="input" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn-danger">Permanently delete my account</button>
+          </form>
+        </div>
+
+        <p class="auth-switch">Changed your mind? <a href="/profile/edit">Keep my account</a></p>
+      {% endif %}
+    </div>
+  </section>
+
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

@@ -19,6 +19,11 @@
     .rank-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;color:var(--accent);min-width:28px}
     .select-input{flex:1}
     @media(max-width:560px){.shot-rank-grid{grid-template-columns:1fr}}
+    .danger-zone{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:40px;padding:20px 24px;border:1px solid rgba(216,68,50,.3);border-radius:16px}
+    .del-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;color:var(--ink);margin:0}
+    .del-desc{color:var(--muted-3);font-size:13px;margin:4px 0 0}
+    .del-link{color:var(--bad);font-weight:700;font-size:13.5px;text-decoration:none;padding:9px 16px;border:1px solid rgba(216,68,50,.45);border-radius:999px;transition:background .15s}
+    .del-link:hover{background:var(--bad-bg)}
   </style>
 </head>
 <body>
@@ -157,6 +162,16 @@
 
       </form>
     </div>
+
+    {% if edit and not user.is_guest %}
+    <div class="danger-zone">
+      <div>
+        <p class="del-title">Delete account</p>
+        <p class="del-desc">Permanently erase your account and all your results.</p>
+      </div>
+      <a href="{{ url_for('delete_account') }}" class="del-link">Delete account</a>
+    </div>
+    {% endif %}
   </div>
 
   <script src="{{ url_for('static', filename='js/site.js') }}"></script>

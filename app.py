@@ -439,7 +439,7 @@ def keep_signed_in():
         session.permanent = True
 
 # Pages someone who hasn't agreed to the privacy policy can still reach.
-PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'shared_card', 'log_share'}
+PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'delete_account', 'shared_card', 'log_share'}
 
 @app.before_request
 def require_privacy_agreement():
@@ -660,6 +660,46 @@ def profile_edit():
         return redirect(url_for('index'))
     saved_shots = parse_shot_order(user['shot_order'])
     return render_template('profile_setup.html', user=user, edit=True, saved_shots=saved_shots)
+
+def delete_account_data(db, user, visitor_ids):
+    """Erases an account and everything tied to it, as the privacy policy
+    promises. Teams the user coaches go too (members' own results stay
+    with them). Caller commits."""
+    uid = user['id']
+    visitor_ids = [v for v in visitor_ids if v]
+    cards = '(SELECT token FROM result_cards WHERE user_id = %s OR visitor_id = ANY(%s))'
+    db.execute(f'DELETE FROM share_events WHERE token IN {cards}', (uid, visitor_ids))
+    db.execute('DELETE FROM result_cards WHERE user_id = %s OR visitor_id = ANY(%s)', (uid, visitor_ids))
+    db.execute('DELETE FROM analysis_history WHERE user_id = %s', (uid,))
+    db.execute('DELETE FROM point_play_history WHERE user_id = %s', (uid,))
+    db.execute('DELETE FROM team_members WHERE user_id = %s', (uid,))
+    db.execute('DELETE FROM teams WHERE coach_id = %s', (uid,))  # members cascade
+    db.execute('DELETE FROM trial_uses WHERE visitor_id = ANY(%s)', (visitor_ids,))
+    db.execute('DELETE FROM users WHERE id = %s', (uid,))
+
+@app.route('/account/delete', methods=['GET', 'POST'])
+def delete_account():
+    user = get_current_user()
+    if not user or user['is_guest']:
+        return redirect(url_for('index'))
+    db = get_db()
+    coached = db.execute(
+        '''SELECT t.name, COUNT(m.user_id) AS players FROM teams t
+           LEFT JOIN team_members m ON m.team_id = t.id
+           WHERE t.coach_id = %s GROUP BY t.id, t.name ORDER BY t.name''', (user['id'],)
+    ).fetchall()
+    if request.method == 'POST':
+        if not password_matches(user['password'], request.form.get('password', '')):
+            db.close()
+            flash("That password isn't right. Your account has not been deleted.")
+            return render_template('account_delete.html', user=user, coached=coached)
+        delete_account_data(db, user, [user['trial_visitor_id'], session.get('visitor_id')])
+        db.commit()
+        db.close()
+        session.clear()
+        return render_template('account_delete.html', deleted=True)
+    db.close()
+    return render_template('account_delete.html', user=user, coached=coached)
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
