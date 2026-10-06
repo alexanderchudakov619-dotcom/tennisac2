@@ -17,6 +17,8 @@
     .auth-switch{color:var(--muted-3);font-size:13.5px;text-align:center;margin-top:24px}
     .auth-switch a{color:var(--accent);text-decoration:none;font-weight:700;border-bottom:1px solid transparent;padding-bottom:2px;transition:border-color .15s}
     .auth-switch a:hover{border-bottom-color:var(--accent)}
+    .forgot-link{display:inline-block;margin-top:10px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+    .forgot-link:hover{text-decoration:underline}
   </style>
 </head>
 <body>
@@ -48,6 +50,7 @@
           <div class="field-group">
             <label class="field-label">Password</label>
             <input type="password" name="password" class="input" placeholder="••••••••" required />
+            <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot password?</a>
           </div>
           <button type="submit" class="btn-cta full" style="margin-top:24px">Sign in</button>
         </form>

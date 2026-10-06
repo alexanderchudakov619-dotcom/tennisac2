@@ -33,7 +33,7 @@ NO_PLAYER_MSG = ("We couldn't find a player clearly in that video. Film from the
                  "behind with your whole body in frame, in decent light, and try again.")
 NO_SWING_MSG = ("We could see you, but couldn't find a swing in that clip. Make sure the "
                 "video includes the full stroke, from backswing through follow-through.")
-UNREADABLE_MSG = "We couldn't read that video file. Try an MP4 or MOV under 60 seconds."
+UNREADABLE_MSG = "We couldn't read that video file. Try an MP4 or MOV under 30 seconds."
 
 
 def _angle(a, b, c):

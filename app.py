@@ -7,6 +7,8 @@ import json
 import traceback
 import threading
 import time
+import urllib.request
+import urllib.error
 from contextlib import contextmanager
 from datetime import timedelta
 import psycopg2
@@ -37,6 +39,16 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=360)
 
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
+
+# Links in emails are always built from this, never from the request's Host
+# header — a forged Host would otherwise point reset links at another site.
+SITE_URL = os.environ.get('SITE_URL', 'https://tennisacapp.com').rstrip('/')
+# Email goes out through Resend (resend.com). Without RESEND_API_KEY the app
+# still runs; it just can't send password reset emails.
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+MAIL_FROM = os.environ.get('MAIL_FROM', 'TennisAC <noreply@tennisacapp.com>')
+RESET_LINK_HOURS = 1
+RESETS_PER_HOUR = 3
 
 # Only this account can view the /admin/users page.
 ADMIN_EMAIL = 'alexanderchudakov619@gmail.com'
@@ -255,6 +267,19 @@ def init_db():
 
     # One row per time someone shares their result — the core growth
     # metric is distinct shared cards per 100 cards delivered.
+    # Password reset links. Only a hash of the token is stored, so a leaked
+    # database can't be used to reset anyone's password.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS password_resets (
+            token_hash TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets (user_id, created_at DESC)')
+
     db.execute('''
         CREATE TABLE IF NOT EXISTS share_events (
             id SERIAL PRIMARY KEY,
@@ -321,7 +346,7 @@ def safe_trajectory_svg(ball_physics):
         return None
 
 UNREADABLE_VIDEO_MSG = ("We couldn't read that video. Try a different clip — MP4 or MOV, "
-                        "under 60 seconds, with you clearly in frame.")
+                        "under 30 seconds, with you clearly in frame.")
 
 def get_current_user():
     if 'user_id' not in session:
@@ -439,7 +464,8 @@ def keep_signed_in():
         session.permanent = True
 
 # Pages someone who hasn't agreed to the privacy policy can still reach.
-PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'delete_account', 'shared_card', 'log_share'}
+PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'delete_account',
+                  'forgot_password', 'reset_password', 'shared_card', 'log_share'}
 
 @app.before_request
 def require_privacy_agreement():
@@ -583,24 +609,114 @@ def login():
         if user and password_matches(user['password'], password):
             if not user['password'].startswith(('scrypt:', 'pbkdf2:')):
                 db.execute('UPDATE users SET password = %s WHERE id = %s', (hash_password(password), user['id']))
-            claim_guest_analyses(db, user['id'])
-            current = get_current_user()
-            if current and current['is_guest'] and current['id'] != user['id']:
-                merge_guest_into(db, current['id'], user['id'])
-            db.commit()
-            db.close()
-            session['user_id'] = user['id']
-            session['privacy_ok'] = bool(user['privacy_accepted_at'])
-            session.permanent = True
+            finish_sign_in(db, user)
             return redirect(url_for('index'))
         db.close()
         # Say which part is wrong — signup already reveals whether an email
         # has an account, so this gives nothing away and saves confusion.
         if user and not user['is_guest']:
-            flash("That password doesn't match this email. Check it (passwords are case-sensitive) and try again.")
+            flash("That password doesn't match this email. Check it (passwords are case-sensitive), "
+                  "or use \"Forgot password?\" below the password box to reset it.")
         else:
             flash("There's no account with that email. Double-check the spelling, or create a new account.")
     return render_template('login.html')
+
+def finish_sign_in(db, user):
+    """Signs this browser into `user`, bringing along anything it did as a
+    guest. Commits and closes db."""
+    claim_guest_analyses(db, user['id'])
+    current = get_current_user()
+    if current and current['is_guest'] and current['id'] != user['id']:
+        merge_guest_into(db, current['id'], user['id'])
+    db.commit()
+    db.close()
+    session['user_id'] = user['id']
+    session['privacy_ok'] = bool(user['privacy_accepted_at'])
+    session.permanent = True
+
+def send_email(to, subject, html, text):
+    """Sends one email through Resend. Returns True if Resend accepted it."""
+    if not RESEND_API_KEY:
+        app.logger.error('RESEND_API_KEY is not set; could not email %s', to)
+        return False
+    req = urllib.request.Request(
+        'https://api.resend.com/emails',
+        data=json.dumps({'from': MAIL_FROM, 'to': [to], 'subject': subject,
+                         'html': html, 'text': text}).encode('utf-8'),
+        headers={'Authorization': f'Bearer {RESEND_API_KEY}',
+                 'Content-Type': 'application/json',
+                 'User-Agent': 'TennisAC/1.0'},
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15):
+            return True
+    except urllib.error.HTTPError as e:
+        app.logger.error('Resend refused email to %s: %s %s', to, e.code, e.read()[:500])
+    except Exception:
+        app.logger.exception('Could not reach Resend to email %s', to)
+    return False
+
+def reset_token_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+@app.route('/forgot', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        db = get_db()
+        user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s AND NOT is_guest', (email,)).fetchone()
+        if user:
+            recent = db.execute(
+                '''SELECT COUNT(*) AS n FROM password_resets
+                   WHERE user_id = %s AND created_at > NOW() - INTERVAL '1 hour' ''', (user['id'],)
+            ).fetchone()['n']
+            if recent < RESETS_PER_HOUR:
+                token = secrets.token_urlsafe(32)
+                db.execute('''INSERT INTO password_resets (token_hash, user_id, expires_at)
+                              VALUES (%s, %s, NOW() + %s * INTERVAL '1 hour')''',
+                           (reset_token_hash(token), user['id'], RESET_LINK_HOURS))
+                db.commit()
+                link = f"{SITE_URL}{url_for('reset_password', token=token)}"
+                send_email(
+                    user['email'], 'Reset your TennisAC password',
+                    render_template('email_reset.html', name=user['name'], link=link, hours=RESET_LINK_HOURS),
+                    render_template('email_reset.txt', name=user['name'], link=link, hours=RESET_LINK_HOURS),
+                )
+        db.close()
+        # Same answer whether or not the email has an account.
+        return render_template('forgot_password.html', sent=True, email=email)
+    return render_template('forgot_password.html')
+
+def valid_reset(db, token):
+    return db.execute(
+        '''SELECT r.token_hash, u.* FROM password_resets r JOIN users u ON u.id = r.user_id
+           WHERE r.token_hash = %s AND r.used_at IS NULL AND r.expires_at > NOW()''',
+        (reset_token_hash(token),)
+    ).fetchone()
+
+@app.route('/reset/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    db = get_db()
+    user = valid_reset(db, token)
+    if not user:
+        db.close()
+        return render_template('reset_password.html', invalid=True)
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if not password:
+            flash('Please choose a new password.')
+        elif password != request.form.get('confirm', ''):
+            flash("Those two passwords don't match. Try again.")
+        else:
+            db.execute('UPDATE users SET password = %s WHERE id = %s', (hash_password(password), user['id']))
+            # This link is now spent, and so is any other one still out there.
+            db.execute('UPDATE password_resets SET used_at = NOW() WHERE user_id = %s AND used_at IS NULL',
+                       (user['id'],))
+            finish_sign_in(db, user)
+            return render_template('reset_password.html', done=True, name=user['name'])
+    db.close()
+    return render_template('reset_password.html', token=token, name=user['name'])
 
 @app.route('/logout')
 def logout():
@@ -675,6 +791,7 @@ def delete_account_data(db, user, visitor_ids):
     db.execute('DELETE FROM team_members WHERE user_id = %s', (uid,))
     db.execute('DELETE FROM teams WHERE coach_id = %s', (uid,))  # members cascade
     db.execute('DELETE FROM trial_uses WHERE visitor_id = ANY(%s)', (visitor_ids,))
+    db.execute('DELETE FROM password_resets WHERE user_id = %s', (uid,))
     db.execute('DELETE FROM users WHERE id = %s', (uid,))
 
 @app.route('/account/delete', methods=['GET', 'POST'])
@@ -1098,7 +1215,7 @@ def server_busy(e):
 @app.errorhandler(413)
 def too_large(e):
     return render_template('error.html', user=get_current_user_safe(), title="That video is too big",
-                           message="Videos need to be under 100 MB. Trim it to the shot or point you want analyzed (10–60 seconds) and try again."), 413
+                           message="Videos need to be under 100 MB. Trim it to just the shot or point you want analyzed and try again."), 413
 
 @app.errorhandler(404)
 def not_found(e):

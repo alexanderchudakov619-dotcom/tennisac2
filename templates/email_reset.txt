@@ -1,0 +1,9 @@
+Hi {{ name }},
+
+We got a request to reset the password for your TennisAC account. Open this link to choose a new one (it works once, for {{ hours }} hour{{ 's' if hours != 1 }}):
+
+{{ link }}
+
+Didn't ask for this? You can ignore this email. Your password won't change.
+
+TennisAC
