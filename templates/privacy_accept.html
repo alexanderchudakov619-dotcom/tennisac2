@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TennisAC — Sign Up</title>
+  <title>TennisAC — Privacy Policy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -11,12 +11,12 @@
   <style>
     .auth-wrap{min-height:calc(100vh - 68px);display:flex;align-items:center;justify-content:center;padding:40px 20px;position:relative;overflow:hidden}
     .auth-orb{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
-    .auth-card{position:relative;z-index:1;width:100%;max-width:420px}
+    .auth-card{position:relative;z-index:1;width:100%;max-width:440px}
     .auth-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(38px,6vw,52px);letter-spacing:-.02em;line-height:.95;margin:0}
-    .auth-sub{color:var(--muted);font-size:15px;margin-top:12px;margin-bottom:28px}
+    .auth-sub{color:var(--muted);font-size:15px;line-height:1.6;margin-top:12px;margin-bottom:28px}
     .auth-switch{color:var(--muted-3);font-size:13.5px;text-align:center;margin-top:24px}
-    .auth-switch a{color:var(--accent);text-decoration:none;font-weight:700;border-bottom:1px solid transparent;padding-bottom:2px;transition:border-color .15s}
-    .auth-switch a:hover{border-bottom-color:var(--accent)}
+    .auth-switch a{color:var(--accent);text-decoration:none;font-weight:700}
+    .agree{margin-top:0}
   </style>
 </head>
 <body>
@@ -29,40 +29,26 @@
     <div class="auth-orb" style="width:280px;height:280px;bottom:-10%;left:-6%;background:rgba(255,50,0,.14);filter:blur(150px);animation:float-a 13s ease-in-out 1.5s infinite"></div>
 
     <div class="auth-card">
-      <p class="eyebrow">Get Started</p>
-      <h1 class="auth-title">Create account</h1>
-      <p class="auth-sub">Set up your profile and start getting coaching built around your game.</p>
+      <p class="eyebrow">One quick thing</p>
+      <h1 class="auth-title">Our privacy policy</h1>
+      <p class="auth-sub">Hi {{ user.name }}. We've added a Privacy Policy that explains what TennisAC keeps and why. Please agree to it to keep using your account. You'll only be asked once.</p>
 
       {% with messages = get_flashed_messages() %}
-        {% if messages %}
-          <div class="flash-msg">{{ messages[0] }}</div>
-        {% endif %}
+        {% if messages %}<div class="flash-msg">{{ messages[0] }}</div>{% endif %}
       {% endwith %}
 
       <div class="panel">
-        <form action="/signup" method="POST">
-          <div class="field-group">
-            <label class="field-label">Full name</label>
-            <input type="text" name="name" class="input" placeholder="Alex Chudakov" required />
-          </div>
-          <div class="field-group">
-            <label class="field-label">Email</label>
-            <input type="email" name="email" class="input" placeholder="your@email.com" required />
-          </div>
-          <div class="field-group">
-            <label class="field-label">Password</label>
-            <input type="password" name="password" class="input" placeholder="••••••••" required />
-          </div>
+        <form action="{{ url_for('privacy_accept') }}" method="POST">
+          <input type="hidden" name="next" value="{{ next_url }}" />
           <label class="agree">
             <input type="checkbox" name="agree_privacy" value="1" required />
             <span>I've read and agree to the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
           </label>
-          <button type="submit" class="btn-cta full" style="margin-top:24px">Create account</button>
+          <button type="submit" class="btn-cta full" style="margin-top:24px">Continue</button>
         </form>
       </div>
 
-      {% if session.user_id or session.visitor_id %}<p class="auth-switch">Everything you've done as a guest moves into your new account.</p>{% endif %}
-      <p class="auth-switch">Already have an account? <a href="/login">Sign in</a></p>
+      <p class="auth-switch">Not you? <a href="/logout">Log out</a></p>
     </div>
   </section>
 

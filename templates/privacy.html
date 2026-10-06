@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Privacy Policy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .policy{max-width:720px;margin:0 auto;padding:64px 20px 96px}
+    .policy h1{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,6vw,60px);letter-spacing:-.02em;line-height:.95;margin:0}
+    .policy .updated{color:var(--muted-3);font-size:13px;margin:14px 0 36px}
+    .policy h2{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.01em;color:var(--ink);margin:40px 0 10px}
+    .policy p,.policy li{color:var(--muted);font-size:15px;line-height:1.7}
+    .policy ul{padding-left:20px;margin:8px 0}
+    .policy li{margin-bottom:6px}
+    .policy strong{color:var(--ink);font-weight:600}
+    .policy a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(255,72,0,.35)}
+    .policy .lead{font-size:17px;color:var(--ink)}
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+  </nav>
+
+  <main class="policy">
+    <p class="eyebrow">Legal</p>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated October 6, 2026</p>
+
+    <p class="lead">TennisAC analyses your tennis videos and gives you coaching. This page explains what we collect to do that, what we do with it, and the choices you have.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>Account details:</strong> your name, email address and password. Passwords are stored only as a secure hash, never in readable form.</li>
+      <li><strong>Your tennis profile:</strong> anything you fill in on your profile, like your UTR, playing style, dominant hand, racquet and favourite shots.</li>
+      <li><strong>Videos you upload:</strong> used only to run your analysis (see below).</li>
+      <li><strong>Your results:</strong> scores, coaching feedback, Point Play breakdowns and ball tracking numbers, so you can track your progress over time.</li>
+      <li><strong>Teams:</strong> which teams you create or join.</li>
+      <li><strong>Sharing:</strong> when you share a result, we count it, and we count how many times a shared result is viewed.</li>
+    </ul>
+    <p>You can use TennisAC without an account. In that case we keep your results under a random guest ID in this browser instead of your name and email.</p>
+
+    <h2>Your videos</h2>
+    <p>Videos are processed on our own server and <strong>deleted as soon as the analysis finishes</strong>, whether it succeeds or not. We don't keep copies, and we never send your video to anyone else. Only the results of the analysis are saved.</p>
+
+    <h2>How we use your information</h2>
+    <ul>
+      <li>To analyse your shots and points and write coaching tuned to your profile.</li>
+      <li>To save your history so you can see your progress and compare sessions.</li>
+      <li>To run teams, shared results and the challenge leaderboard.</li>
+      <li>To keep you signed in and keep the service working and secure.</li>
+    </ul>
+    <p>We don't sell your information, and we don't show you ads.</p>
+
+    <h2>Who else sees it</h2>
+    <ul>
+      <li><strong>Your coach:</strong> if you join a team, that team's coach can see your analysis history.</li>
+      <li><strong>Anyone with a share link:</strong> when you share a result, anyone with the link can see that result card.</li>
+      <li><strong>The challenge leaderboard:</strong> if you enter a result, it's shown publicly with your first name and last initial.</li>
+      <li><strong>Services that run TennisAC:</strong>
+        <ul>
+          <li>Render hosts the website, and Neon hosts our database. Both are in the United States.</li>
+          <li>For Point Play, we send Anthropic (the company that makes the Claude AI) a <em>text</em> description of the point: the ball tracking numbers, what you tell us about the point, and your tennis profile. Never your video, email or password. This is used to write your Point Play coaching.</li>
+          <li>Our fonts load from Google Fonts, so Google can see that your browser requested them.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2>Cookies</h2>
+    <p>We use one cookie to keep you signed in, or to remember your guest results, for up to 360 days. We don't use advertising or tracking cookies.</p>
+
+    <h2>How long we keep it</h2>
+    <p>We keep your account and results until you ask us to delete them. Uploaded videos are deleted right after analysis, as described above.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li>You can update your profile at any time from Edit Profile.</li>
+      <li>You can leave a team at any time, and your coach will no longer see your history.</li>
+      <li>You can ask us for a copy of your information, or ask us to delete your account and everything in it, by emailing us at the address below.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>TennisAC isn't meant for children under 13. If you're under 13, please ask a parent or guardian before using it. If we learn we've collected information from a child under 13 without a parent's permission, we'll delete it.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If we change this policy in a way that affects you, we'll update the date at the top and ask you to agree again.</p>
+
+    <h2>Contact</h2>
+    <p>Questions or requests? Email <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

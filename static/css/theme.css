@@ -230,6 +230,12 @@ textarea.input{resize:vertical}
   font-size:13.5px;padding:13px 16px;border-radius:12px;margin-bottom:20px;
 }
 
+/* Agreement checkbox (privacy policy on signup) */
+.agree{display:flex;align-items:flex-start;gap:11px;margin-top:20px;font-size:13.5px;line-height:1.5;color:var(--muted);cursor:pointer}
+.agree input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--accent);cursor:pointer}
+.agree a{color:var(--accent);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(255,72,0,.35)}
+.agree a:hover{border-bottom-color:var(--accent)}
+
 /* ── Dropzone ────────────────────────────────────────── */
 .dropzone{position:relative;margin-top:6px}
 .dz-inner{

@@ -180,6 +180,10 @@ def init_db():
     # was_guest records that, for the guest -> signup conversion number.
     db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE')
     db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS was_guest BOOLEAN NOT NULL DEFAULT FALSE')
+    # When the account holder agreed to the privacy policy. NULL means they
+    # haven't yet (accounts made before the checkbox existed) and are asked
+    # once, the next time they visit.
+    db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_accepted_at TIMESTAMP')
 
     db.execute('''
         CREATE TABLE IF NOT EXISTS trial_uses (
@@ -434,6 +438,54 @@ def keep_signed_in():
     if 'user_id' in session and not session.permanent:
         session.permanent = True
 
+# Pages someone who hasn't agreed to the privacy policy can still reach.
+PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'shared_card', 'log_share'}
+
+@app.before_request
+def require_privacy_agreement():
+    """Accounts made before the signup checkbox existed are asked once to
+    agree. The answer is remembered in the session, so this only touches
+    the database until it's settled for this browser."""
+    if 'user_id' not in session or session.get('privacy_ok') or request.endpoint in PRIVACY_EXEMPT:
+        return None
+    user = get_current_user()
+    if user and not user['is_guest'] and not user['privacy_accepted_at']:
+        return redirect(url_for('privacy_accept', next=request.full_path if request.method == 'GET' else None))
+    # Guests agree when they sign up; logging in re-checks the account.
+    session['privacy_ok'] = True
+    return None
+
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html', contact_email=ADMIN_EMAIL)
+
+def safe_next(target):
+    """Only follow redirects back into this site."""
+    if target and target.startswith('/') and not target.startswith('//'):
+        return target
+    return url_for('index')
+
+@app.route('/privacy/accept', methods=['GET', 'POST'])
+def privacy_accept():
+    user = get_current_user()
+    if not user or user['is_guest']:
+        return redirect(url_for('index'))
+    next_url = safe_next(request.values.get('next'))
+    if user['privacy_accepted_at']:
+        session['privacy_ok'] = True
+        return redirect(next_url)
+    if request.method == 'POST':
+        if not request.form.get('agree_privacy'):
+            flash('Please tick the box to agree to the Privacy Policy.')
+        else:
+            db = get_db()
+            db.execute('UPDATE users SET privacy_accepted_at = CURRENT_TIMESTAMP WHERE id = %s', (user['id'],))
+            db.commit()
+            db.close()
+            session['privacy_ok'] = True
+            return redirect(next_url)
+    return render_template('privacy_accept.html', user=user, next_url=next_url)
+
 _site_stats = {'at': 0, 'stats': None}
 
 def site_stats():
@@ -484,6 +536,9 @@ def signup():
         if not email or not password or not name:
             flash('Please fill in all required fields.')
             return render_template('signup.html')
+        if not request.form.get('agree_privacy'):
+            flash('Please agree to the Privacy Policy to create your account.')
+            return render_template('signup.html')
         db = get_db()
         existing = db.execute('SELECT id FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
         if existing:
@@ -495,10 +550,12 @@ def signup():
             # Turn this browser's guest account into the real one, so every
             # analysis, Point Play, and team it already has stays put.
             db.execute('''UPDATE users SET email = %s, password = %s, name = %s,
-                          is_guest = FALSE, was_guest = TRUE WHERE id = %s''',
+                          is_guest = FALSE, was_guest = TRUE,
+                          privacy_accepted_at = CURRENT_TIMESTAMP WHERE id = %s''',
                        (email, hash_password(password), name, current['id']))
         else:
-            db.execute('INSERT INTO users (email, password, name) VALUES (%s, %s, %s)',
+            db.execute('''INSERT INTO users (email, password, name, privacy_accepted_at)
+                          VALUES (%s, %s, %s, CURRENT_TIMESTAMP)''',
                        (email, hash_password(password), name))
         db.commit()
         user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s', (email,)).fetchone()
@@ -510,6 +567,7 @@ def signup():
             db.execute('UPDATE users SET trial_visitor_id = %s WHERE id = %s', (session['visitor_id'], user['id']))
         db.commit()
         session['user_id'] = user['id']
+        session['privacy_ok'] = True
         session.permanent = True
         db.close()
         return redirect(url_for('profile_setup'))
@@ -532,6 +590,7 @@ def login():
             db.commit()
             db.close()
             session['user_id'] = user['id']
+            session['privacy_ok'] = bool(user['privacy_accepted_at'])
             session.permanent = True
             return redirect(url_for('index'))
         db.close()
