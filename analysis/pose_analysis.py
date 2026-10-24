@@ -157,9 +157,9 @@ def serve_feedback(m):
         target="Full reach", detail=_pct_reach(ch),
     )
     if ch_score is not None and ch_score < 60:
-        tips.append("Your contact point is below your full reach. Toss a little higher and reach up to it with a straight arm.")
+        tips.append(("Contact Height", "Your contact point is below your full reach. Toss a little higher and reach up to it with a straight arm."))
     elif ch_score is not None and ch_score >= 80:
-        tips.append("Good contact height — you are reaching up well into the toss.")
+        tips.append(("Contact Height", "Good contact height — you are reaching up well into the toss."))
 
     # 2. Arm Extension — elbow angle at contact (180° = dead straight).
     ae = m.get("arm_extension_max")
@@ -173,7 +173,7 @@ def serve_feedback(m):
         value=_by_score(ae_score, ELBOW_WORDS), target="Almost straight", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 60:
-        tips.append("Your elbow does not fully extend at contact. Work on straightening your arm up into the ball.")
+        tips.append(("Arm Extension", "Your elbow does not fully extend at contact. Work on straightening your arm up into the ball."))
 
     # 3. Toss Consistency — spread of the toss peak between serves.
     tc = m.get("toss_consistency_std")
@@ -187,9 +187,9 @@ def serve_feedback(m):
         value=_toss_spread(tc), target="Same spot every serve",
     )
     if tc_score is not None and tc_score < 60:
-        tips.append("Your toss moves around between serves. Practice isolated toss drills — release from the same point each time.")
+        tips.append(("Toss Consistency", "Your toss moves around between serves. Practice isolated toss drills — release from the same point each time."))
     elif tc_score is not None and tc_score >= 80:
-        tips.append("Your toss looks consistent — keep repeating this pattern.")
+        tips.append(("Toss Consistency", "Your toss looks consistent — keep repeating this pattern."))
 
     # 4. Knee Bend — deepest knee angle while loading (smaller = more bend).
     kb = m.get("knee_bend_avg")
@@ -203,7 +203,7 @@ def serve_feedback(m):
         value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
-        tips.append("You are not bending your knees enough before serving. A deeper knee bend helps you drive upward and add power.")
+        tips.append(("Knee Bend (Loading)", "You are not bending your knees enough before serving. A deeper knee bend helps you drive upward and add power."))
 
     # 5. Shoulder Turn — how far the shoulder line rotates through the motion.
     sa = m.get("shoulder_angle_avg")
@@ -217,7 +217,7 @@ def serve_feedback(m):
         value=_by_score(sa_score, TURN_WORDS), target="Full turn", detail=_detail(sa, "of shoulder turn"),
     )
     if sa_score is not None and sa_score < 50:
-        tips.append("Your shoulder rotation looks limited. Turn your shoulders further at the trophy position before swinging up.")
+        tips.append(("Shoulder Turn", "Your shoulder rotation looks limited. Turn your shoulders further at the trophy position before swinging up."))
 
     results["Hip–Shoulder Separation"] = _separation_metric(m)
 
@@ -251,7 +251,7 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
         value=_height_zone(ch), target="Waist to chest",
     )
     if ch_score is not None and ch_score < 50:
-        tips.append(f"You're meeting the ball low on the {side_name}. Move your feet earlier so you can take it between waist and chest height.")
+        tips.append(("Contact Point", f"You're meeting the ball low on the {side_name}. Move your feet earlier so you can take it between waist and chest height."))
 
     ae = m.get("arm_extension_avg")
     ae_score = score_0_100(ae, extension_lo, extension_hi)
@@ -264,7 +264,7 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
         value=_by_score(ae_score, EXTEND_WORDS), target="Extended through the ball", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 60:
-        tips.append(f"Your {side_name} looks jammed at contact. Give yourself more room to extend through the ball.")
+        tips.append(("Extension Through Contact", f"Your {side_name} looks jammed at contact. Give yourself more room to extend through the ball."))
 
     tr = m.get("trunk_rotation_avg")
     tr_score = score_0_100(tr, 30, 100)
@@ -277,7 +277,7 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
         value=_by_score(tr_score, TURN_WORDS), target="Full turn", detail=_detail(tr, "of shoulder turn"),
     )
     if tr_score is not None and tr_score < 50:
-        tips.append(f"Your shoulder turn on the {side_name} is limited. Turn early and fully, then rotate through the ball.")
+        tips.append(("Unit Turn / Rotation", f"Your shoulder turn on the {side_name} is limited. Turn early and fully, then rotate through the ball."))
 
     results["Hip–Shoulder Separation"] = _separation_metric(m)
 
@@ -292,7 +292,7 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
         value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
-        tips.append(f"You appear upright on the {side_name}. Bend your knees to stay low and balanced through the shot.")
+        tips.append(("Knee Bend", f"You appear upright on the {side_name}. Bend your knees to stay low and balanced through the shot."))
 
 
 def forehand_feedback(m):
@@ -333,7 +333,7 @@ def rally_feedback(m):
         value=_by_score(kb_score, KNEE_WORDS), target="Deep bend", detail=_detail(kb, "at the knee (180° = straight leg)"),
     )
     if kb_score is not None and kb_score < 50:
-        tips.append("Your stance looks too upright. Stay on the balls of your feet with knees bent so you can react faster.")
+        tips.append(("Athletic Stance", "Your stance looks too upright. Stay on the balls of your feet with knees bent so you can react faster."))
 
     tr = m.get("trunk_rotation_avg")
     tr_score = score_0_100(tr, 20, 90)
@@ -346,7 +346,7 @@ def rally_feedback(m):
         value=_by_score(tr_score, TURN_WORDS), target="Full turn", detail=_detail(tr, "of shoulder turn"),
     )
     if tr_score is not None and tr_score < 50:
-        tips.append("Work on rotating your whole body into shots rather than just swinging with your arm.")
+        tips.append(("Body Rotation", "Work on rotating your whole body into shots rather than just swinging with your arm."))
 
     ae = m.get("arm_extension_avg")
     ae_score = score_0_100(ae, 90, 150)
@@ -359,12 +359,110 @@ def rally_feedback(m):
         value=_by_score(ae_score, EXTEND_WORDS), target="Extended through the ball", detail=_detail(ae, "at the elbow (180° = straight)"),
     )
     if ae_score is not None and ae_score < 50:
-        tips.append("Your swings are getting jammed during the rally. Focus on spacing so you can drive through each ball.")
+        tips.append(("Swing Extension", "Your swings are getting jammed during the rally. Focus on spacing so you can drive through each ball."))
 
     if not tips:
         tips.append("Movement and rally mechanics look consistent. Keep working on positioning before each shot.")
 
     return results, tips
+
+
+# ── Phases of the shot ───────────────────────────────────────────────────────
+# How professional video analysts break a shot down: one set of phases for
+# every shot except the serve, and a separate set for the serve. Each phase
+# says what to look for and which of our metrics measure it; a phase with no
+# metric is shown as a checkpoint for the player to look for on their video.
+# Metric names cover forehand, backhand and rally — missing ones are skipped.
+
+SHOT_PHASES = [
+    {"name": "Ready or neutral position",
+     "focus": "Feet a little wider than your shoulders, knees soft, weight on the balls of your feet, racquet out in front.",
+     "metrics": ["Athletic Stance"]},
+    {"name": "Activation — split step and first rotation",
+     "focus": "Split step as your opponent hits, land, and turn hips and shoulders together the moment you read the ball.",
+     "metrics": ["Unit Turn / Rotation", "Body Rotation"]},
+    {"name": "Pre-extension",
+     "focus": "Racquet goes back early and compact, non-hitting hand stays on the racquet or across your body, racquet head up.",
+     "metrics": []},
+    {"name": "Load",
+     "focus": "Weight sinks into your outside leg, knees bend, and shoulders turn further than hips to wind up the coil.",
+     "metrics": ["Knee Bend", "Hip–Shoulder Separation"]},
+    {"name": "Movement towards the ball",
+     "focus": "Big steps to cover distance, then small adjustment steps so the ball arrives at the right distance from you.",
+     "metrics": []},
+    {"name": "Movement to the contact point",
+     "focus": "Unwind hips then shoulders and meet the ball out in front, between waist and chest, with your arm extended.",
+     "metrics": ["Contact Point", "Extension Through Contact", "Swing Extension"]},
+    {"name": "Follow through / Deceleration",
+     "focus": "Keep rotating and let the racquet finish over your shoulder or across your body. Stay balanced, head still.",
+     "metrics": []},
+    {"name": "Recovery steps",
+     "focus": "Shuffle or crossover back toward the middle of your court so you're set for your next split step.",
+     "metrics": []},
+]
+
+SERVE_PHASES = [
+    {"name": "Initial position",
+     "focus": "Same stance and routine every point: weight balanced, racquet and ball hand together, relaxed grip.",
+     "metrics": []},
+    {"name": "First weight transfer",
+     "focus": "Weight rocks back onto the back foot as your arms begin to drop. Smooth rhythm, no rush.",
+     "metrics": []},
+    {"name": "Second weight transfer and toss",
+     "focus": "Weight moves forward onto the front foot as the toss arm lifts straight up. Same release point and height every time.",
+     "metrics": ["Toss Consistency"]},
+    {"name": "Pre-extension",
+     "focus": "Toss arm stays up, pointing at the ball. Hitting arm reaches trophy position with the body tall before the drop.",
+     "metrics": []},
+    {"name": "Loading phase",
+     "focus": "Knees bend, hips push toward the court, shoulders tilt and turn away from the net to store energy.",
+     "metrics": ["Knee Bend (Loading)", "Shoulder Turn", "Hip–Shoulder Separation"]},
+    {"name": "Motion towards the ball",
+     "focus": "Legs drive up first, then hips and shoulders unwind, while the racquet drops behind your back and accelerates up.",
+     "metrics": []},
+    {"name": "Impact",
+     "focus": "Contact at full reach, arm almost straight, ball slightly in front, forearm pronating through the hit.",
+     "metrics": ["Contact Height", "Arm Extension"]},
+    {"name": "Deceleration",
+     "focus": "Arm keeps pronating and finishes across your body. Land on your front foot inside the baseline, balanced.",
+     "metrics": []},
+    {"name": "Recovery and preparation for the +1",
+     "focus": "Recover straight into a split step, ready for the return and your first shot after the serve.",
+     "metrics": []},
+]
+
+
+def build_phases(shot_type, scores):
+    """The shot broken into its phases, in order, each with the metrics we
+    measured in it and their average score (None if nothing was measured)."""
+    phases = []
+    for number, p in enumerate(SERVE_PHASES if shot_type == 'serve' else SHOT_PHASES, 1):
+        names = [n for n in p["metrics"] if n in scores]
+        valid = [scores[n]["score"] for n in names if scores[n]["score"] is not None]
+        score = round(sum(valid) / len(valid)) if valid else None
+        phases.append({
+            "number": number,
+            "name": p["name"],
+            "focus": p["focus"],
+            "metrics": names,
+            "score": score,
+            "label": label(score),
+        })
+    return phases
+
+
+def _phase_notes(tips, phases):
+    """Tag each tip with the phase its metric belongs to and order them
+    through the shot; general tips (no metric) go last."""
+    phase_of = {name: p for p in phases for name in p["metrics"]}
+    notes = []
+    for tip in tips:
+        metric, text = tip if isinstance(tip, tuple) else (None, tip)
+        p = phase_of.get(metric)
+        notes.append({"text": text,
+                      "phase": p["number"] if p else None,
+                      "phase_name": p["name"] if p else None})
+    return sorted(notes, key=lambda n: n["phase"] or 99)
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -375,7 +473,8 @@ def generate_feedback(metrics, shot_type='serve'):
     return a dict with per-metric scores and a list of coaching tips.
     """
     if "error" in metrics:
-        return {"scores": {}, "tips": ["Could not process video. Please try again with a clearer clip."]}
+        return {"scores": {}, "phases": [],
+                "tips": [{"text": "Could not process video. Please try again with a clearer clip.", "phase": None, "phase_name": None}]}
 
     dispatch = {
         "serve":     serve_feedback,
@@ -390,10 +489,12 @@ def generate_feedback(metrics, shot_type='serve'):
     # Overall score = average of available metric scores
     valid = [v["score"] for v in scores.values() if v["score"] is not None]
     overall = round(sum(valid) / len(valid)) if valid else None
+    phases = build_phases(shot_type, scores)
 
     return {
         "scores": scores,
-        "tips": tips,
+        "phases": phases,
+        "tips": _phase_notes(tips, phases),
         "overall_score": overall,
         "overall_label": label(overall),
     }
@@ -447,7 +548,7 @@ def generate_feedback(metrics, shot_type='serve', profile=None):
     result = _original_generate_feedback(metrics, shot_type)
     if profile:
         intro_tips = _profile_intro(profile, shot_type)
-        result['tips'] = intro_tips + result['tips']
+        result['tips'] = [{"text": t, "phase": None, "phase_name": None} for t in intro_tips] + result['tips']
         name = profile.get('name', '')
         if name:
             result['greeting'] = f"Here's your analysis, {name.split()[0]}."

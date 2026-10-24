@@ -55,6 +55,29 @@
     .tip-icon{display:flex;color:var(--accent);flex-shrink:0}
     .tip-text{font-size:14.5px;line-height:1.6;color:var(--ink)}
 
+    .tip-phase{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:3px}
+
+    .phase-intro{color:var(--muted);font-size:14px;line-height:1.6;margin:-10px 0 20px}
+    .phase-strip{list-style:none;padding:0;margin:0 0 26px;display:flex;gap:6px}
+    .phase-pip{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;padding:6px 0;border-radius:8px}
+    .pip-excellent,.pip-good{background:var(--good-bg);color:var(--good)}
+    .pip-needs-work{background:var(--ok-bg);color:var(--ok)}
+    .pip-poor{background:var(--bad-bg);color:var(--bad)}
+    .pip-check{background:#fff;color:var(--muted-3);border:1px dashed var(--border-soft)}
+    .phase-list{list-style:none;padding:0;margin:0}
+    .phase{display:flex;gap:16px;position:relative;padding-bottom:22px}
+    .phase:not(:last-child)::before{content:"";position:absolute;left:15px;top:34px;bottom:0;width:2px;background:var(--border-soft)}
+    .phase-num{flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;
+      font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px}
+    .phase-checkpoint .phase-num{background:#fff;color:var(--muted-3);border:1.5px dashed var(--muted-4)}
+    .phase-body{flex:1;min-width:0;padding-top:4px}
+    .phase-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .phase-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;line-height:1.15;margin:0}
+    .phase-focus{color:var(--muted);font-size:14px;line-height:1.6;margin:6px 0 0}
+    .phase-focus .k{color:var(--muted-3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-right:4px}
+    .phase .metrics-grid{margin-top:14px}
+    .label-check{background:#fff;color:var(--muted-3);border:1px dashed var(--border-soft)}
+
     .cta-section{text-align:center;padding:16px 0 54px}
 
     @media(max-width:640px){.metrics-grid{grid-template-columns:1fr}}
@@ -122,9 +145,32 @@
 
   <section class="metrics-section">
     <div class="wrap">
-      <h2 class="section-title">Metric Breakdown</h2>
-      <div class="metrics-grid">
-        {% for name, data in feedback.scores.items() %}
+      <h2 class="section-title">{{ 'Serve Phases' if shot_type == 'serve' else 'Phases of the Shot' }}</h2>
+      <p class="phase-intro">How professional video analysts break it down. Phases we measure get a score; the rest are checkpoints to look for when you watch your video back.</p>
+
+      <ol class="phase-strip" aria-hidden="true">
+        {% for phase in feedback.phases %}
+        <li class="phase-pip {{ 'pip-' ~ (phase.label | lower | replace(' ', '-')) if phase.score is not none else 'pip-check' }}" title="{{ phase.number }}. {{ phase.name }}">{{ phase.number }}</li>
+        {% endfor %}
+      </ol>
+
+      <ol class="phase-list">
+        {% for phase in feedback.phases %}
+        <li class="phase{% if phase.score is none %} phase-checkpoint{% endif %}">
+          <div class="phase-num">{{ phase.number }}</div>
+          <div class="phase-body">
+            <div class="phase-head">
+              <h3 class="phase-name">{{ phase.name }}</h3>
+              {% if phase.score is not none %}
+              <span class="metric-label label-{{ phase.label | lower | replace(' ', '-') }}">{{ phase.label }} · {{ phase.score }}</span>
+              {% else %}
+              <span class="metric-label label-check">Check on video</span>
+              {% endif %}
+            </div>
+            <p class="phase-focus"><span class="k">Look for</span> {{ phase.focus }}</p>
+            {% if phase.metrics %}
+            <div class="metrics-grid">
+        {% for name in phase.metrics %}{% set data = feedback.scores[name] %}
         <div class="metric-card" onclick="this.classList.toggle('open')">
           <div class="metric-header">
             <span class="metric-name">{{ name }}</span>
@@ -150,7 +196,12 @@
           </div>
         </div>
         {% endfor %}
-      </div>
+            </div>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
     </div>
   </section>
 
@@ -174,7 +225,10 @@
         {% for tip in feedback.tips %}
         <div class="tip-card">
           <div class="tip-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M4.3 6.8c2.8 2.6 2.8 8 0 10.4M19.7 6.8c-2.8 2.6-2.8 8 0 10.4"/></svg></div>
-          <p class="tip-text">{{ tip }}</p>
+          <div>
+            {% if tip.phase %}<p class="tip-phase">Phase {{ tip.phase }} · {{ tip.phase_name }}</p>{% endif %}
+            <p class="tip-text">{{ tip.text }}</p>
+          </div>
         </div>
         {% endfor %}
       </div>
