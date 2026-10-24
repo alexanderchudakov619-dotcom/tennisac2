@@ -16,7 +16,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
-from analysis.pose_analysis import generate_feedback, build_phases
+from analysis.pose_analysis import generate_feedback, build_phases, find_mistakes
+from analysis.coach_chat import build_context, clean_history, ask_coach
 from analysis.point_analyzer import analyze_point_with_ai
 from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
@@ -1276,6 +1277,46 @@ def log_share(token):
         db.commit()
     db.close()
     return ('', 204) if owner else ('', 403)
+
+CHAT_LIMIT_PER_HOUR = 30
+
+@app.route('/r/<token>/chat', methods=['POST'])
+def coach_chat(token):
+    """Answers the player's questions about one of their analyses. Only the
+    person who got the result can chat about it, and each browser gets a
+    capped number of messages an hour, since every reply costs an API call."""
+    db = get_db()
+    card = db.execute('SELECT * FROM result_cards WHERE token = %s', (token,)).fetchone()
+    owner = card and ((card['user_id'] and card['user_id'] == session.get('user_id'))
+                      or (card['visitor_id'] and card['visitor_id'] == session.get('visitor_id')))
+    user = db.execute('SELECT * FROM users WHERE id = %s', (card['user_id'],)).fetchone() if owner and card['user_id'] else None
+    db.close()
+    if not owner:
+        return {'error': "You can only ask about your own analysis."}, 403
+
+    now = time.time()
+    recent = [t for t in session.get('chat_times', []) if now - t < 3600]
+    if len(recent) >= CHAT_LIMIT_PER_HOUR:
+        return {'error': "That's a lot of questions for one hour. Take it to the court and come back later."}, 429
+
+    history = clean_history((request.get_json(silent=True) or {}).get('messages'))
+    if history is None:
+        return {'error': "Type a question for the coach."}, 400
+
+    scores = json.loads(card['scores_json'] or '{}')
+    phases = build_phases(card['shot_type'], scores)
+    profile = None
+    if user and not (user['is_guest'] and not user['play_like']):
+        profile = {k: user[k] for k in ('utr', 'player_type', 'play_like', 'tactical_pref', 'dominant_hand',
+                                        'backhand_style', 'best_shot', 'point_length')}
+    context = build_context(card['shot_type'], card['overall_score'], card['overall_label'],
+                            scores, phases, find_mistakes(scores, phases), profile)
+
+    reply, error = ask_coach(context, history)
+    if error:
+        return {'error': error}, 502
+    session['chat_times'] = recent + [now]
+    return {'reply': reply}
 
 CHALLENGE_SHOTS = ('serve', 'forehand', 'backhand')
 
