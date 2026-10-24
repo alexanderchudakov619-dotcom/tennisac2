@@ -137,6 +137,40 @@ def _separation_metric(m):
     )
 
 
+HEAD_WORDS = ("Still through contact", "Mostly still", "Moves at contact", "Moves a lot at contact")
+BALANCE_WORDS = ("Balanced", "Mostly balanced", "Off balance at times", "Falling off the shot")
+
+
+def _head_metric(m, results, tips):
+    hm = m.get("head_movement_avg")
+    sc = score_0_100(hm, 0.05, 0.35, invert=True)
+    results["Head Stability"] = metric_entry(
+        sc,
+        definition="How still your head stays as you hit the ball. A steady head keeps your eyes on the contact point and your body on line.",
+        ai_focus="Tracks your head against your shoulders in the instant around contact.",
+        fix_low="Your head is moving as you hit. Keep your eyes on the contact point until the ball has left the strings, then let your head turn.",
+        fix_high="Your head stays quiet through contact — that's helping you strike the ball cleanly.",
+        value=_by_score(sc, HEAD_WORDS), target="Still through contact",
+    )
+    if sc is not None and sc < 50:
+        tips.append(("Head Stability", "Your head moves at contact. Watch the ball onto the strings and hold your head still a beat after."))
+
+
+def _balance_metric(m, results, tips, name, definition, fix_low, fix_high, tip):
+    bal = m.get("balance_after_avg")
+    sc = score_0_100(bal, 0.3, 1.0)
+    results[name] = metric_entry(
+        sc,
+        definition=definition,
+        ai_focus="Checks the frames right after contact: are your hips over your feet and your upper body upright, or are you falling away?",
+        fix_low=fix_low, fix_high=fix_high,
+        value=_by_score(sc, BALANCE_WORDS), target="Balanced",
+        detail=f"Balanced in {round(bal * 100)}% of frames after contact" if bal is not None else None,
+    )
+    if sc is not None and sc < 50:
+        tips.append((name, tip))
+
+
 # ── Shot-specific feedback rules ─────────────────────────────────────────────
 
 def serve_feedback(m):
@@ -221,6 +255,30 @@ def serve_feedback(m):
 
     results["Hip–Shoulder Separation"] = _separation_metric(m)
 
+    # Trophy position: elbow height relative to the shoulder.
+    te = m.get("trophy_elbow_avg")
+    te_score = score_0_100(te, -0.35, 0.05)
+    results["Elbow Height (Trophy)"] = metric_entry(
+        te_score,
+        definition="How high your hitting elbow is in the trophy position, the loaded moment before you swing up. Level with or above the shoulder lets the racquet drop and accelerate freely.",
+        ai_focus="Finds the top of your toss and checks where your hitting elbow is against your shoulder at that moment.",
+        fix_low="Your elbow drops below your shoulder in the trophy position, which shortens the swing and strains the shoulder. Lift the elbow up to shoulder height as the toss goes up — think 'elbow up, racquet tip up'.",
+        fix_high="Your elbow is up at shoulder height in the trophy — a strong, safe loading position.",
+        value=_by_score(te_score, ("At or above the shoulder", "Just below the shoulder", "Below the shoulder", "Dropped well below")),
+        target="At or above the shoulder",
+    )
+    if te_score is not None and te_score < 50:
+        tips.append(("Elbow Height (Trophy)", "Your elbow drops in the trophy position. Lift it to shoulder height as you toss so the racquet can drop and accelerate."))
+
+    _head_metric(m, results, tips)
+    _balance_metric(
+        m, results, tips, "Landing Balance",
+        definition="How balanced you land after the serve: on your front foot, inside the court, upper body under control and ready for the next ball.",
+        fix_low="You're falling off balance as you land. Drive up and forward into the court, land on your front foot, and let your back leg swing through to catch you.",
+        fix_high="You land balanced and under control — ready to recover for the next shot.",
+        tip="You're off balance on the landing. Drive up and into the court and land on your front foot, ready to split step.",
+    )
+
     if not tips:
         tips.append("Your serve mechanics look solid overall. Keep focusing on consistency under match pressure.")
 
@@ -293,6 +351,30 @@ def _groundstroke(m, results, tips, side_name, contact_fix, extension_lo, extens
     )
     if kb_score is not None and kb_score < 50:
         tips.append(("Knee Bend", f"You appear upright on the {side_name}. Bend your knees to stay low and balanced through the shot."))
+
+    _head_metric(m, results, tips)
+
+    ft = m.get("follow_through_avg")
+    ft_score = score_0_100(ft, -0.4, 0.3)
+    results["Follow-Through"] = metric_entry(
+        ft_score,
+        definition=f"How high and complete your swing finishes after contact. A low-to-high swing that finishes over the shoulder is what puts topspin and control on the {side_name}. (A slice finishes lower by design.)",
+        ai_focus="Follows your hitting hand after contact and checks how high it finishes compared with your shoulders.",
+        fix_low=f"Your swing stops short after contact. Let the racquet keep going up and across so your {side_name} finishes over your shoulder — don't decelerate into the ball.",
+        fix_high="You're finishing high and complete — that low-to-high path is giving the ball shape and margin.",
+        value=_by_score(ft_score, ("Finishes over the shoulder", "Finishes around shoulder height", "Finishes low", "Cut short")),
+        target="Over the shoulder",
+    )
+    if ft_score is not None and ft_score < 50:
+        tips.append(("Follow-Through", f"Your {side_name} finish is cut short. Swing through the ball and finish with the racquet over your shoulder."))
+
+    _balance_metric(
+        m, results, tips, "Balance & Finish",
+        definition="How stable you are once the shot is done: holding your finish with your hips over your feet, not falling away from the ball.",
+        fix_low=f"You're falling off your {side_name} after contact. Set your feet earlier, stay low through the ball, and hold your finish for a moment before recovering.",
+        fix_high="You hold a stable, balanced finish — a sign the whole body is working together.",
+        tip=f"You're falling off balance after your {side_name}. Get set earlier and hold your finish before you recover.",
+    )
 
 
 def forehand_feedback(m):
@@ -392,10 +474,10 @@ SHOT_PHASES = [
      "metrics": []},
     {"name": "Movement to the contact point",
      "focus": "Unwind hips then shoulders and meet the ball out in front, between waist and chest, with your arm extended.",
-     "metrics": ["Contact Point", "Extension Through Contact", "Swing Extension"]},
+     "metrics": ["Contact Point", "Extension Through Contact", "Swing Extension", "Head Stability"]},
     {"name": "Follow through / Deceleration",
      "focus": "Keep rotating and let the racquet finish over your shoulder or across your body. Stay balanced, head still.",
-     "metrics": []},
+     "metrics": ["Follow-Through", "Balance & Finish"]},
     {"name": "Recovery steps",
      "focus": "Shuffle or crossover back toward the middle of your court so you're set for your next split step.",
      "metrics": []},
@@ -413,7 +495,7 @@ SERVE_PHASES = [
      "metrics": ["Toss Consistency"]},
     {"name": "Pre-extension",
      "focus": "Toss arm stays up, pointing at the ball. Hitting arm reaches trophy position with the body tall before the drop.",
-     "metrics": []},
+     "metrics": ["Elbow Height (Trophy)"]},
     {"name": "Loading phase",
      "focus": "Knees bend, hips push toward the court, shoulders tilt and turn away from the net to store energy.",
      "metrics": ["Knee Bend (Loading)", "Shoulder Turn", "Hip–Shoulder Separation"]},
@@ -422,10 +504,10 @@ SERVE_PHASES = [
      "metrics": []},
     {"name": "Impact",
      "focus": "Contact at full reach, arm almost straight, ball slightly in front, forearm pronating through the hit.",
-     "metrics": ["Contact Height", "Arm Extension"]},
+     "metrics": ["Contact Height", "Arm Extension", "Head Stability"]},
     {"name": "Deceleration",
      "focus": "Arm keeps pronating and finishes across your body. Land on your front foot inside the baseline, balanced.",
-     "metrics": []},
+     "metrics": ["Landing Balance"]},
     {"name": "Recovery and preparation for the +1",
      "focus": "Recover straight into a split step, ready for the return and your first shot after the serve.",
      "metrics": []},
@@ -451,6 +533,54 @@ def build_phases(shot_type, scores):
     return phases
 
 
+# Serve overall score is weighted by what matters most (planning doc,
+# Lesson 4): toss 15%, trophy position 15%, contact 20%, the rest shared.
+# Racquet acceleration (15% in the plan) can't be measured from body
+# tracking alone, so the weights of what we did measure are rescaled.
+SERVE_WEIGHTS = {
+    "Toss Consistency": 15,
+    "Elbow Height (Trophy)": 5, "Knee Bend (Loading)": 5, "Hip–Shoulder Separation": 5,
+    "Contact Height": 10, "Arm Extension": 10,
+    "Shoulder Turn": 12, "Head Stability": 13, "Landing Balance": 10,
+}
+
+# The classic error each metric points to when it scores poorly, so the
+# player sees the mistake by name.
+COMMON_MISTAKES = {
+    "Contact Height": "Contact below full reach",
+    "Arm Extension": "Bent arm at contact",
+    "Toss Consistency": "Toss drifting between serves",
+    "Knee Bend (Loading)": "Not loading the legs",
+    "Shoulder Turn": "Limited shoulder turn",
+    "Elbow Height (Trophy)": "Dropped elbow at the trophy",
+    "Landing Balance": "Falling off balance on landing",
+    "Hip–Shoulder Separation": "Hips and shoulders turning together",
+    "Head Stability": "Head moving at contact",
+    "Contact Point": "Low contact point",
+    "Extension Through Contact": "Too close to the body (jammed)",
+    "Unit Turn / Rotation": "No rotation — arm-only swing",
+    "Knee Bend": "Standing too tall",
+    "Follow-Through": "Short follow-through",
+    "Balance & Finish": "Falling off the shot",
+    "Athletic Stance": "Standing tall between shots",
+    "Body Rotation": "Arm-only swings",
+    "Swing Extension": "Jammed swings",
+}
+
+
+def find_mistakes(scores, phases):
+    """Common mistakes spotted in this clip: any metric scoring under 50,
+    named the way a coach would say it, in the order of the shot."""
+    out = []
+    for p in phases:
+        for name in p["metrics"]:
+            sc = scores[name]["score"]
+            if sc is not None and sc < 50 and name in COMMON_MISTAKES:
+                out.append({"mistake": COMMON_MISTAKES[name], "metric": name,
+                            "phase": p["number"], "phase_name": p["name"]})
+    return out
+
+
 def _phase_notes(tips, phases):
     """Tag each tip with the phase its metric belongs to and order them
     through the shot; general tips (no metric) go last."""
@@ -473,7 +603,7 @@ def generate_feedback(metrics, shot_type='serve'):
     return a dict with per-metric scores and a list of coaching tips.
     """
     if "error" in metrics:
-        return {"scores": {}, "phases": [],
+        return {"scores": {}, "phases": [], "mistakes": [],
                 "tips": [{"text": "Could not process video. Please try again with a clearer clip.", "phase": None, "phase_name": None}]}
 
     dispatch = {
@@ -486,14 +616,17 @@ def generate_feedback(metrics, shot_type='serve'):
     fn = dispatch.get(shot_type, serve_feedback)
     scores, tips = fn(metrics)
 
-    # Overall score = average of available metric scores
-    valid = [v["score"] for v in scores.values() if v["score"] is not None]
-    overall = round(sum(valid) / len(valid)) if valid else None
+    # Overall score = weighted average of the metrics we could measure
+    # (serve weights from the plan; every other shot weights them equally).
+    weights = SERVE_WEIGHTS if shot_type == 'serve' else {}
+    valid = [(v["score"], weights.get(n, 1)) for n, v in scores.items() if v["score"] is not None]
+    overall = round(sum(s * w for s, w in valid) / sum(w for _, w in valid)) if valid else None
     phases = build_phases(shot_type, scores)
 
     return {
         "scores": scores,
         "phases": phases,
+        "mistakes": find_mistakes(scores, phases),
         "tips": _phase_notes(tips, phases),
         "overall_score": overall,
         "overall_label": label(overall),

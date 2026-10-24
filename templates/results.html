@@ -58,6 +58,12 @@
     .tip-phase{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:3px}
 
     .phase-intro{color:var(--muted);font-size:14px;line-height:1.6;margin:-10px 0 20px}
+    .mistakes{background:#fff;border:1px solid var(--border-soft);border-left:3px solid var(--bad);border-radius:14px;padding:14px 18px;margin-bottom:18px}
+    .mistakes-k{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--bad);margin:0 0 10px}
+    .mistake-list{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+    .mistake{display:inline-flex;align-items:center;gap:7px;background:var(--bad-bg);color:var(--ink);font-size:13.5px;padding:5px 12px 5px 5px;border-radius:999px}
+    .mistake-phase{width:20px;height:20px;border-radius:50%;background:var(--bad);color:#fff;display:inline-flex;align-items:center;justify-content:center;
+      font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;flex-shrink:0}
     .phase-strip{list-style:none;padding:0;margin:0 0 26px;display:flex;gap:6px}
     .phase-pip{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;padding:6px 0;border-radius:8px}
     .pip-excellent,.pip-good{background:var(--good-bg);color:var(--good)}
@@ -147,6 +153,17 @@
     <div class="wrap">
       <h2 class="section-title">{{ 'Serve Phases' if shot_type == 'serve' else 'Phases of the Shot' }}</h2>
       <p class="phase-intro">How professional video analysts break it down. Phases we measure get a score; the rest are checkpoints to look for when you watch your video back.</p>
+
+      {% if feedback.mistakes %}
+      <div class="mistakes">
+        <p class="mistakes-k">Common mistakes spotted</p>
+        <ul class="mistake-list">
+          {% for m in feedback.mistakes %}
+          <li class="mistake" title="{{ m.metric }}"><span class="mistake-phase">{{ m.phase }}</span>{{ m.mistake }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
       <ol class="phase-strip" aria-hidden="true">
         {% for phase in feedback.phases %}

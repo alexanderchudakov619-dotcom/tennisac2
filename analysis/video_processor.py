@@ -101,6 +101,13 @@ def _mean(xs):
     return round(float(np.mean(xs)), 1) if xs else None
 
 
+def _mean_fine(xs):
+    # For fractions of a torso length or 0-1 shares, where one decimal
+    # would round the measurement away.
+    xs = [x for x in xs if x is not None]
+    return round(float(np.mean(xs)), 3) if xs else None
+
+
 def process_video(video_path, shot_type='serve', dominant_hand=None):
     cap = cv2.VideoCapture(video_path)
     opened = cap.isOpened()
@@ -237,6 +244,56 @@ def process_video(video_path, shot_type='serve', dominant_hand=None):
                 top = min(tw, key=lambda i: poses[i][toss][1])
                 hm = (poses[top][L_HIP][:2] + poses[top][R_HIP][:2]) / 2
                 m['toss_x'] = (poses[top][toss][0] - hm[0]) / torso
+
+                # Trophy position: the toss arm's peak is when the hitting
+                # arm should be loaded, elbow at or above the shoulder.
+                # Highest elbow in a short window around it, before the
+                # racquet drop and swing up (when the elbow rises anyway).
+                trophy = [i for i in frames_between(t[top] - 0.15, min(t[top] + 0.15, t[c] - 0.2))
+                          if _visible(poses[i], shoulder, elbow)]
+                if trophy:
+                    m['trophy_elbow'] = max((poses[i][shoulder][1] - poses[i][elbow][1]) / torso for i in trophy)
+
+        # Head stability: how far the head moves relative to the shoulders
+        # in the instant around contact.
+        heads = []
+        # Kept tight (about 3 samples): on the serve the head is already
+        # up before this, and that lift isn't the head moving at contact.
+        for i in frames_between(t[c] - 0.14, t[c] + 0.14):
+            q = poses[i]
+            if _visible(q, NOSE, L_SHOULDER, R_SHOULDER):
+                heads.append((q[NOSE][:2] - (q[L_SHOULDER][:2] + q[R_SHOULDER][:2]) / 2) / torso)
+        if len(heads) >= 3:
+            heads = np.array(heads)
+            m['head_move'] = float(np.max(np.linalg.norm(heads - heads.mean(axis=0), axis=1)))
+
+        # Balance after contact (the serve's landing): share of frames where
+        # the hips stay over the feet and the torso isn't leaning hard.
+        after = frames_between(t[c] + 0.3, t[c] + 1.2) if shot_type == 'serve' else frames_between(t[c] + 0.15, t[c] + 0.7)
+        # Landing a serve you're still moving forward into the court, so a
+        # bit more lean is normal than holding a groundstroke finish.
+        max_lean = 40 if shot_type == 'serve' else 30
+        steady = []
+        for i in after:
+            q = poses[i]
+            if not _visible(q, L_HIP, R_HIP, L_ANKLE, R_ANKLE, L_SHOULDER, R_SHOULDER):
+                continue
+            hm = (q[L_HIP][:2] + q[R_HIP][:2]) / 2
+            sm = (q[L_SHOULDER][:2] + q[R_SHOULDER][:2]) / 2
+            lo, hi = sorted((q[L_ANKLE][0], q[R_ANKLE][0]))
+            outside = max(lo - hm[0], hm[0] - hi, 0) / torso
+            lean = math.degrees(math.atan2(abs(sm[0] - hm[0]), max(hm[1] - sm[1], 1e-6)))
+            steady.append(outside < 0.15 and lean < max_lean)
+        if len(steady) >= 2:
+            m['balance'] = sum(steady) / len(steady)
+
+        # Follow-through: how high the hitting hand finishes above the
+        # shoulders after contact (groundstrokes finish over the shoulder).
+        if shot_type != 'serve':
+            fin = [(((poses[i][L_SHOULDER][1] + poses[i][R_SHOULDER][1]) / 2) - poses[i][hit][1]) / torso
+                   for i in frames_between(t[c], t[c] + 0.6) if _visible(poses[i], hit, L_SHOULDER, R_SHOULDER)]
+            if len(fin) >= 2:
+                m['finish_height'] = max(fin)
         per_swing.append(m)
 
     def all_of(key):
@@ -266,4 +323,13 @@ def process_video(video_path, shot_type='serve', dominant_hand=None):
         "hip_shoulder_separation": _mean(all_of('separation')),
         # Spread of the toss across serves, in torso lengths (needs 2+ serves).
         "toss_consistency_std": toss_std,
+        # Elbow above (+) or below (-) the shoulder at the trophy position,
+        # and the hand's highest point above the shoulders after contact,
+        # both in torso lengths.
+        "trophy_elbow_avg":     _mean_fine(all_of('trophy_elbow')),
+        "follow_through_avg":   _mean_fine(all_of('finish_height')),
+        # Head movement around contact (torso lengths) and share of
+        # balanced frames after contact (0-1).
+        "head_movement_avg":    _mean_fine(all_of('head_move')),
+        "balance_after_avg":    _mean_fine(all_of('balance')),
     }
