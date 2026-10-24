@@ -37,7 +37,15 @@
     .breakdown-toggle svg{transition:transform .2s ease}
     .progress-card.open .breakdown-toggle svg{transform:rotate(180deg)}
     .breakdown-detail{max-height:0;overflow:hidden;transition:max-height .3s ease}
-    .progress-card.open .breakdown-detail{max-height:900px}
+    .progress-card.open .breakdown-detail{max-height:1400px}
+    .phase-strip{list-style:none;padding:0;margin:16px 0 0;display:flex;gap:4px;clear:both}
+    .phase-pip{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;padding:4px 0;border-radius:6px}
+    .pip-excellent,.pip-good{background:var(--good-bg);color:var(--good)}
+    .pip-needs-work{background:var(--ok-bg);color:var(--ok)}
+    .pip-poor{background:var(--bad-bg);color:var(--bad)}
+    .pip-check{background:#fff;color:var(--muted-3);border:1px dashed var(--border-soft)}
+    .phase-row{display:flex;align-items:center;gap:8px;margin:4px 0 -4px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;color:var(--ink)}
+    .phase-n{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
     .breakdown-list{margin-top:18px;padding-top:18px;border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:14px}
     .breakdown-row .metric-header{margin-bottom:8px}
     .breakdown-row .metric-name{font-size:13px}
@@ -122,13 +130,20 @@
                     <label class="cmp-pick"><input type="checkbox" value="{{ item['id'] }}" data-shot="{{ item['shot_type'] }}"> Compare</label>
 
                     {% if item['scores'] %}
+                        <ol class="phase-strip">
+                            {% for phase in item['phases'] %}
+                            <li class="phase-pip {{ 'pip-' ~ (phase.label | lower | replace(' ', '-')) if phase.score is not none else 'pip-check' }}" title="{{ phase.number }}. {{ phase.name }}{% if phase.score is not none %} · {{ phase.label }}{% endif %}">{{ phase.number }}</li>
+                            {% endfor %}
+                        </ol>
                         <button type="button" class="breakdown-toggle" onclick="this.closest('.progress-card').classList.toggle('open')">
-                            <span>View metric breakdown</span>
+                            <span>View phase breakdown</span>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
                         <div class="breakdown-detail">
                             <div class="breakdown-list">
-                                {% for name, data in item['scores'].items() %}
+                                {% for phase in item['phases'] if phase.metrics %}
+                                <p class="phase-row"><span class="phase-n">{{ phase.number }}</span>{{ phase.name }}</p>
+                                {% for name in phase.metrics %}{% set data = item['scores'][name] %}
                                 <div class="breakdown-row">
                                     <div class="metric-header">
                                         <span class="metric-name">{{ name }}</span>
@@ -142,6 +157,7 @@
                                     </div>
                                     <span class="metric-score"{% if data.detail %} title="{{ data.detail }}"{% endif %}>{% if data.value %}{{ data.value }}{% elif data.score is none %}Not measured{% else %}{{ data.score | round | int }} / 100{% endif %}{% if data.target %} <span style="opacity:.75">· Pros: {{ data.target }}</span>{% endif %}</span>
                                 </div>
+                                {% endfor %}
                                 {% endfor %}
                             </div>
                         </div>

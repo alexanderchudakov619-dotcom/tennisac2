@@ -1015,6 +1015,7 @@ def load_history(user_id):
             row['scores'] = json.loads(row['scores_json']) if row['scores_json'] else {}
         except (TypeError, ValueError):
             row['scores'] = {}
+        row['phases'] = build_phases(row['shot_type'], row['scores'])
         rows.append(row)
     return rows
 
