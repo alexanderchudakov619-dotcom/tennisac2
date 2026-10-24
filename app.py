@@ -16,7 +16,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
-from analysis.pose_analysis import generate_feedback
+from analysis.pose_analysis import generate_feedback, build_phases
 from analysis.point_analyzer import analyze_point_with_ai
 from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
@@ -1255,8 +1255,11 @@ def shared_card(token):
     scores = json.loads(card['scores_json'] or '{}')
     rated = [(name, d) for name, d in scores.items() if isinstance(d.get('score'), (int, float))]
     biggest_fix = min(rated, key=lambda item: item[1]['score']) if rated else None
+    # Rebuilt from the saved scores, so cards shared before phases existed get them too.
+    phases = build_phases(card['shot_type'], scores)
+    fix_phase = next((p for p in phases if biggest_fix and biggest_fix[0] in p['metrics']), None)
     return render_template('shared_card.html', card=card, scores=scores, biggest_fix=biggest_fix,
-                           user=get_current_user())
+                           phases=phases, fix_phase=fix_phase, user=get_current_user())
 
 @app.route('/r/<token>/share', methods=['POST'])
 def log_share(token):

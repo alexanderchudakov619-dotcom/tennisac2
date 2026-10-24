@@ -26,9 +26,20 @@
     .score-denom{color:var(--muted-3);font-size:13px}
     .score-lbl{color:var(--accent-deep);font-weight:700;font-size:14px;margin-top:6px}
 
-    .metric-list{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:8px 20px;margin-top:34px}
-    .metric-row{display:grid;grid-template-columns:1fr 2fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--border-soft);font-size:14px}
-    .metric-row:first-child{border-top:none}
+    .phases-k{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-3);margin:34px 0 8px}
+    .phase-strip{list-style:none;padding:0;margin:0;display:flex;gap:5px}
+    .phase-pip{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;padding:6px 0;border-radius:8px}
+    .pip-excellent,.pip-good{background:var(--good-bg);color:var(--good)}
+    .pip-needs-work{background:var(--ok-bg);color:var(--ok)}
+    .pip-poor{background:var(--bad-bg);color:var(--bad)}
+    .pip-check{background:#fff;color:var(--muted-3);border:1px dashed var(--border-soft)}
+
+    .metric-list{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:8px 20px;margin-top:14px}
+    .phase-row{display:flex;align-items:center;gap:8px;margin:0;padding:14px 0 2px;border-top:1px solid var(--border-soft);
+      font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:var(--ink)}
+    .phase-row:first-child{border-top:none}
+    .phase-n{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+    .metric-row{display:grid;grid-template-columns:9em 1fr 11em;align-items:center;gap:14px;padding:10px 0;font-size:14px}
     .metric-row .name{color:var(--ink);font-weight:600}
     .bar{height:6px;border-radius:3px;background:var(--border-soft);overflow:hidden}
     .bar span{display:block;height:100%;border-radius:3px}
@@ -74,8 +85,18 @@
   <section>
     <div class="wrap">
       {% if scores %}
+      <p class="phases-k">{{ 'Serve phases' if card.shot_type == 'serve' else 'Phases of the shot' }}</p>
+      <ol class="phase-strip">
+        {% for phase in phases %}
+        <li class="phase-pip {{ 'pip-' ~ (phase.label | lower | replace(' ', '-')) if phase.score is not none else 'pip-check' }}" title="{{ phase.number }}. {{ phase.name }}{% if phase.score is not none %} · {{ phase.label }}{% endif %}">{{ phase.number }}</li>
+        {% endfor %}
+      </ol>
+
       <div class="metric-list">
-        {% for name, data in scores.items() %}
+        {% for phase in phases if phase.metrics %}
+        <p class="phase-row"><span class="phase-n">{{ phase.number }}</span>{{ phase.name }}</p>
+        {% for name in phase.metrics %}
+        {% set data = scores[name] %}
         {% set sc = data.score or 0 %}
         <div class="metric-row">
           <span class="name">{{ name }}</span>
@@ -83,12 +104,13 @@
           <span class="val">{{ data.value or data.label or '—' }}</span>
         </div>
         {% endfor %}
+        {% endfor %}
       </div>
       {% endif %}
 
       {% if biggest_fix and biggest_fix[1].fix %}
       <div class="fix-card">
-        <p class="fix-k">Biggest fix · {{ biggest_fix[0] }}</p>
+        <p class="fix-k">Biggest fix · {% if fix_phase %}Phase {{ fix_phase.number }} · {% endif %}{{ biggest_fix[0] }}</p>
         <p class="fix-v">{{ biggest_fix[1].fix }}</p>
       </div>
       {% endif %}
