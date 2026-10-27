@@ -17,8 +17,9 @@ import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
 from analysis.pose_analysis import generate_feedback, build_phases, find_mistakes
-from analysis.coach_chat import build_context, clean_history, ask_coach
-from analysis.point_analyzer import analyze_point_with_ai
+from analysis.coach_chat import build_context, build_point_context, clean_history, ask_coach
+from analysis.coaching_styles import COACHING_STYLES
+from analysis.point_analyzer import analyze_point_with_ai, describe_ball_physics
 from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
 
@@ -197,6 +198,8 @@ def init_db():
     # haven't yet (accounts made before the checkbox existed) and are asked
     # once, the next time they visit.
     db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_accepted_at TIMESTAMP')
+    # Which coaching style the AI coach uses with this player (see analysis/coaching_styles.py).
+    db.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS coach_style TEXT')
 
     db.execute('''
         CREATE TABLE IF NOT EXISTS trial_uses (
@@ -753,59 +756,41 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
+def save_profile(user_id):
+    """Saves the profile form (setup and edit share it)."""
+    shot_order = ", ".join(f"{i}. {request.form.get(f'shot{i}', '')}" for i in range(1, 7))
+    coach_style = request.form.get('coach_style')
+    if coach_style not in COACHING_STYLES:
+        coach_style = None  # the default, balanced coach
+    db = get_db()
+    db.execute('''UPDATE users SET play_like=%s, utr=%s, player_type=%s, tactical_pref=%s,
+                  racquet=%s, dominant_hand=%s, backhand_style=%s, best_shot=%s,
+                  point_length=%s, shot_order=%s, coach_style=%s WHERE id=%s''',
+               (request.form.get('play_like'), request.form.get('utr'),
+                request.form.get('player_type'), request.form.get('tactical_pref'),
+                request.form.get('racquet'), request.form.get('dominant_hand'),
+                request.form.get('backhand_style'), request.form.get('best_shot'),
+                request.form.get('point_length'), shot_order, coach_style, user_id))
+    db.commit()
+    db.close()
+
 @app.route('/profile/setup', methods=['GET', 'POST'])
 def profile_setup():
     user = get_or_create_user()
     if request.method == 'POST':
-        shot_order = (
-            f"1. {request.form.get('shot1','')}, "
-            f"2. {request.form.get('shot2','')}, "
-            f"3. {request.form.get('shot3','')}, "
-            f"4. {request.form.get('shot4','')}, "
-            f"5. {request.form.get('shot5','')}, "
-            f"6. {request.form.get('shot6','')}"
-        )
-        db = get_db()
-        db.execute('''UPDATE users SET play_like=%s, utr=%s, player_type=%s, tactical_pref=%s,
-                      racquet=%s, dominant_hand=%s, backhand_style=%s, best_shot=%s,
-                      point_length=%s, shot_order=%s WHERE id=%s''',
-                   (request.form.get('play_like'), request.form.get('utr'),
-                    request.form.get('player_type'), request.form.get('tactical_pref'),
-                    request.form.get('racquet'), request.form.get('dominant_hand'),
-                    request.form.get('backhand_style'), request.form.get('best_shot'),
-                    request.form.get('point_length'), shot_order, user['id']))
-        db.commit()
-        db.close()
+        save_profile(user['id'])
         return redirect(url_for('index'))
     saved_shots = parse_shot_order(user['shot_order'])
-    return render_template('profile_setup.html', user=user, saved_shots=saved_shots)
+    return render_template('profile_setup.html', user=user, saved_shots=saved_shots, styles=COACHING_STYLES)
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 def profile_edit():
     user = get_or_create_user()
     if request.method == 'POST':
-        shot_order = (
-            f"1. {request.form.get('shot1','')}, "
-            f"2. {request.form.get('shot2','')}, "
-            f"3. {request.form.get('shot3','')}, "
-            f"4. {request.form.get('shot4','')}, "
-            f"5. {request.form.get('shot5','')}, "
-            f"6. {request.form.get('shot6','')}"
-        )
-        db = get_db()
-        db.execute('''UPDATE users SET play_like=%s, utr=%s, player_type=%s, tactical_pref=%s,
-                      racquet=%s, dominant_hand=%s, backhand_style=%s, best_shot=%s,
-                      point_length=%s, shot_order=%s WHERE id=%s''',
-                   (request.form.get('play_like'), request.form.get('utr'),
-                    request.form.get('player_type'), request.form.get('tactical_pref'),
-                    request.form.get('racquet'), request.form.get('dominant_hand'),
-                    request.form.get('backhand_style'), request.form.get('best_shot'),
-                    request.form.get('point_length'), shot_order, user['id']))
-        db.commit()
-        db.close()
+        save_profile(user['id'])
         return redirect(url_for('index'))
     saved_shots = parse_shot_order(user['shot_order'])
-    return render_template('profile_setup.html', user=user, edit=True, saved_shots=saved_shots)
+    return render_template('profile_setup.html', user=user, edit=True, saved_shots=saved_shots, styles=COACHING_STYLES)
 
 def delete_account_data(db, user, visitor_ids):
     """Erases an account and everything tied to it, as the privacy policy
@@ -968,20 +953,21 @@ def point_play():
             'tactical_pref': user['tactical_pref'], 'dominant_hand': user['dominant_hand'],
             'backhand_style': user['backhand_style'], 'best_shot': user['best_shot'],
             'point_length': user['point_length'], 'shot_order': user['shot_order'],
+            'coach_style': user['coach_style'],
         }
         # Run AI analysis
         analysis = analyze_point_with_ai(motion_metrics, point_result, point_context, profile, ball_physics=ball_physics)
         trajectory_svg = safe_trajectory_svg(ball_physics)
         db = get_db()
-        db.execute(
+        play = db.execute(
             '''INSERT INTO point_play_history
                (user_id, point_result, point_context, analysis_json, ball_physics_json, trajectory_svg)
-               VALUES (%s, %s, %s, %s, %s, %s)''',
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
             (user['id'], point_result, point_context[:2000], json.dumps(analysis),
              # numpy scalars (np.bool_, np.int64) from the trackers -> plain JSON
              json.dumps(ball_physics, default=lambda o: o.item() if hasattr(o, 'item') else str(o)) if ball_physics else None,
              trajectory_svg),
-        )
+        ).fetchone()
         db.commit()
         db.close()
         return render_template('point_play_results.html',
@@ -989,7 +975,8 @@ def point_play():
                                point_result=point_result,
                                ball_physics=ball_physics,
                                trajectory_svg=trajectory_svg,
-                               user=user)
+                               user=user,
+                               chat_play_id=play['id'])
     return render_template('point_play.html', user=user)
 
 def load_point_plays(user_id):
@@ -1027,8 +1014,30 @@ def point_play_saved(play_id):
         ball_physics = json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None
     except (TypeError, ValueError):
         analysis, ball_physics = {}, None
+    # The chat is the player's own; a coach viewing it sees the analysis only.
+    chat_play_id = play_id if play['user_id'] == user['id'] else None
     return render_template('point_play_results.html', analysis=analysis, point_result=play['point_result'],
-                           ball_physics=ball_physics, trajectory_svg=play['trajectory_svg'], user=user)
+                           ball_physics=ball_physics, trajectory_svg=play['trajectory_svg'], user=user,
+                           chat_play_id=chat_play_id)
+
+@app.route('/point-play/<int:play_id>/chat', methods=['POST'])
+def point_play_chat(play_id):
+    """The coach chat about one Point Play point. Only the player who
+    played it can ask, under the same hourly cap as the shot chat."""
+    db = get_db()
+    play = db.execute('SELECT * FROM point_play_history WHERE id = %s', (play_id,)).fetchone()
+    user = db.execute('SELECT * FROM users WHERE id = %s', (play['user_id'],)).fetchone() if play else None
+    db.close()
+    if not play or play['user_id'] != session.get('user_id'):
+        return {'error': "You can only ask about your own points."}, 403
+    try:
+        analysis = json.loads(play['analysis_json'] or '{}')
+        ball_physics = json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None
+    except (TypeError, ValueError):
+        analysis, ball_physics = {}, None
+    context = build_point_context(play['point_result'], play['point_context'], analysis,
+                                  describe_ball_physics(ball_physics), chat_profile(user))
+    return run_chat(context, 'point', user['coach_style'] if user else None)
 
 
 def load_history(user_id):
@@ -1325,6 +1334,23 @@ def coach_chat(token):
     if not owner:
         return {'error': "You can only ask about your own analysis."}, 403
 
+    scores = json.loads(card['scores_json'] or '{}')
+    phases = build_phases(card['shot_type'], scores)
+    context = build_context(card['shot_type'], card['overall_score'], card['overall_label'],
+                            scores, phases, find_mistakes(scores, phases), chat_profile(user))
+    return run_chat(context, 'shot', user['coach_style'] if user else None)
+
+def chat_profile(user):
+    """The player's profile for the coach chat, or None for a guest who
+    hasn't filled one in."""
+    if not user or (user['is_guest'] and not user['play_like']):
+        return None
+    return {k: user[k] for k in ('utr', 'player_type', 'play_like', 'tactical_pref', 'racquet', 'dominant_hand',
+                                 'backhand_style', 'best_shot', 'point_length')}
+
+def run_chat(context, kind, coach_style):
+    """One chat reply for the conversation the browser sent, under the
+    per-browser hourly cap (every reply is an API call)."""
     now = time.time()
     recent = [t for t in session.get('chat_times', []) if now - t < 3600]
     if len(recent) >= CHAT_LIMIT_PER_HOUR:
@@ -1334,16 +1360,7 @@ def coach_chat(token):
     if history is None:
         return {'error': "Type a question for the coach."}, 400
 
-    scores = json.loads(card['scores_json'] or '{}')
-    phases = build_phases(card['shot_type'], scores)
-    profile = None
-    if user and not (user['is_guest'] and not user['play_like']):
-        profile = {k: user[k] for k in ('utr', 'player_type', 'play_like', 'tactical_pref', 'dominant_hand',
-                                        'backhand_style', 'best_shot', 'point_length')}
-    context = build_context(card['shot_type'], card['overall_score'], card['overall_label'],
-                            scores, phases, find_mistakes(scores, phases), profile)
-
-    reply, error = ask_coach(context, history)
+    reply, error = ask_coach(context, history, kind=kind, coach_style=coach_style)
     if error:
         return {'error': error}, 502
     session['chat_times'] = recent + [now]

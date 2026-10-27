@@ -204,6 +204,15 @@
     <p>© 2026 TennisAC — Built for players who want to get better.</p>
   </footer>
 
+  {% if chat_play_id %}
+  {% set chat_url = url_for('point_play_chat', play_id=chat_play_id) %}
+  {% set chat_sub = 'Knows this point, your shots and your tactics scores' %}
+  {% set chat_intro = 'Ask me anything about this point: what you should have hit, why a tactic scored low, or a pattern to practice.' %}
+  {% set chat_placeholder = 'Ask about this point…' %}
+  {% set chat_chips = ['What should I have hit instead?', 'How do I build points better?', 'Give me a drill for this pattern'] %}
+  {% include '_coach_chat.html' %}
+  {% endif %}
+
   <script src="{{ url_for('static', filename='js/site.js') }}"></script>
   <script>
     window.addEventListener('load', () => {

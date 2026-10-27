@@ -443,6 +443,17 @@ def rally_feedback(m):
     if ae_score is not None and ae_score < 50:
         tips.append(("Swing Extension", "Your swings are getting jammed during the rally. Focus on spacing so you can drive through each ball."))
 
+    # Balance on the move (the plan's "dynamic balance") and a still head
+    # at contact, averaged over every shot in the rally.
+    _head_metric(m, results, tips)
+    _balance_metric(
+        m, results, tips, "Balance & Finish",
+        definition="How stable you stay through each shot while moving in the rally: hips over your feet, upper body under control, not falling away from the ball.",
+        fix_low="You're falling off your shots during the rally. Get your feet set a beat earlier, stay low through contact, and recover from a balanced finish.",
+        fix_high="You stay balanced through your shots even on the move — that's what lets you recover fast for the next ball.",
+        tip="You're off balance after your rally shots. Set your feet earlier and finish balanced before you recover.",
+    )
+
     if not tips:
         tips.append("Movement and rally mechanics look consistent. Keep working on positioning before each shot.")
 

@@ -1,10 +1,13 @@
 """
 coach_chat.py
-The "Ask your coach" chat on the results page: answers a player's
-questions about one analysis ("why did this score low?", "what should I
-fix first?"), knowing their profile and every measured metric.
+The "Ask your coach" chat on the shot results and Point Play pages:
+answers a player's questions about one analysis ("why did this score
+low?", "what should I fix first?", "what should I have hit there?"),
+knowing their profile, their coaching style, and everything measured.
 """
 import anthropic
+
+from analysis.coaching_styles import style_prompt
 
 CHAT_MODEL = "claude-opus-5-5"
 
@@ -24,6 +27,58 @@ How to coach:
 - Be direct and encouraging, like a good coach courtside. This is a small chat window: keep answers under about 150 words unless they ask for more detail. Plain sentences, with "- " bullets for drills or steps; **bold** at most a few key words; no headings or tables.
 - You can't see the video itself, only the measurements. If something can only be judged by watching, tell them what to look for when they watch it back.
 - Stay on tennis and this player's game. Not a substitute for a medical professional: if they mention pain or an injury, tell them to get it checked before training through it."""
+
+
+POINT_SYSTEM = """You are TennisAC's coach: a high-performance tennis coach talking with a player about one point they played, which TennisAC has already analyzed. The players are intermediate to advanced (high school varsity and up), so use real tennis language: crosscourt, down the line, inside-out, approach, neutralize, the +1, and so on.
+
+How to coach:
+- Ground every answer in the point analysis below: the result, the player's own description, the point flow (defence / neutral / attack), the tactics ratings, and any tracked ball physics.
+- Never invent a speed, depth, spin or position that isn't in the analysis. If they ask about something it doesn't cover, say so and coach from what they describe instead.
+- When they ask what they should have done, name the specific shot and target, and why it gives them better odds in that situation.
+- Turn lessons into patterns and drills they can practice, with a simple progression.
+- Fit the advice to their profile when it's given (UTR, play style, tactical preference, the player they want to play like).
+- Be direct and encouraging, like a good coach courtside. This is a small chat window: keep answers under about 150 words unless they ask for more detail. Plain sentences, with "- " bullets for drills or steps; **bold** at most a few key words; no headings or tables.
+- You can't see the video itself, only the analysis and the player's description.
+- Stay on tennis and this player's game. Not a substitute for a medical professional: if they mention pain or an injury, tell them to get it checked before training through it."""
+
+
+def _profile_lines(profile):
+    known = {k: v for k, v in (profile or {}).items() if v}
+    if not known:
+        return []
+    return ["", "Player profile:"] + [f"  - {k.replace('_', ' ')}: {v}" for k, v in known.items()]
+
+
+def _item_text(item):
+    # Point Play items are {text, detail} now; older saved plays are plain text.
+    if isinstance(item, dict):
+        return item.get("text", "") + (f" ({item['detail']})" if item.get("detail") else "")
+    return str(item)
+
+
+def build_point_context(point_result, point_context, analysis, ball_physics_text, profile):
+    """A Point Play analysis written out for the coach."""
+    analysis = analysis or {}
+    lines = [f"Point result: the player {point_result.upper()} this point.",
+             f"Player's description: {point_context or 'none given'}"]
+    if ball_physics_text:
+        lines += ["", ball_physics_text]
+    if analysis.get("point_flow"):
+        lines += ["", "Point flow (the player's shots):"]
+        lines += [f"  - {s['shot']}: {s['situation']} — {s['note']}" for s in analysis["point_flow"]]
+    tactics = analysis.get("tactics") or {}
+    if tactics:
+        lines += ["", f"Tactical score: {analysis.get('tactical_score', 'n/a')}/100"]
+        for key, t in tactics.items():
+            score = f"{t['score']}/100" if t.get("score") is not None else "N/A"
+            lines.append(f"  - {key.replace('_', ' ')}: {score} — {t.get('note', '')}")
+    for key, title in (("breakdown", "Breakdown"), ("shot_suggestions", "Shot suggestions"),
+                       ("popup_tips", "Opponent patterns")):
+        if analysis.get(key):
+            lines += ["", f"{title}:"] + [f"  - {_item_text(i)}" for i in analysis[key]]
+    if analysis.get("too_good"):
+        lines += ["", f"Opponent's shot was too good: {analysis['too_good']}"]
+    return "\n".join(lines + _profile_lines(profile))
 
 
 def _fmt_score(data):
@@ -54,10 +109,7 @@ def build_context(shot_type, overall_score, overall_label, scores, phases, mista
     if mistakes:
         lines += ["", "Common mistakes flagged: " + "; ".join(f"{m['mistake']} (phase {m['phase']})" for m in mistakes)]
 
-    known = {k: v for k, v in (profile or {}).items() if v}
-    if known:
-        lines += ["", "Player profile:"] + [f"  - {k.replace('_', ' ')}: {v}" for k, v in known.items()]
-    return "\n".join(lines)
+    return "\n".join(lines + _profile_lines(profile))
 
 
 def clean_history(raw):
@@ -81,9 +133,15 @@ def clean_history(raw):
     return msgs
 
 
-def ask_coach(context, history):
-    """One coach reply. Returns (reply_text, error_message); exactly one
-    is set."""
+def ask_coach(context, history, kind="shot", coach_style=None):
+    """One coach reply about a shot analysis (kind="shot") or a Point Play
+    point (kind="point"), in the player's coaching style. Returns
+    (reply_text, error_message); exactly one is set."""
+    system = [{"type": "text", "text": POINT_SYSTEM if kind == "point" else COACH_SYSTEM}]
+    if style_prompt(coach_style):
+        system.append({"type": "text", "text": style_prompt(coach_style)})
+    system.append({"type": "text", "text": "The analysis:\n" + context,
+                   "cache_control": {"type": "ephemeral"}})
     try:
         client = anthropic.Anthropic()
     except anthropic.AnthropicError:
@@ -98,11 +156,7 @@ def ask_coach(context, history):
             # If a request is declined, retry it on a fallback model.
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
-            system=[
-                {"type": "text", "text": COACH_SYSTEM},
-                {"type": "text", "text": "The analysis:\n" + context,
-                 "cache_control": {"type": "ephemeral"}},
-            ],
+            system=system,
             messages=history,
         )
     except anthropic.AuthenticationError:

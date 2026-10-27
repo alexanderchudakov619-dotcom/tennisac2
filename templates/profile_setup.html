@@ -11,6 +11,10 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <style>
     .wrap{max-width:700px;margin:0 auto;padding:48px clamp(20px,5vw,32px) 90px}
+    .field-hint{color:var(--muted);font-size:13.5px;line-height:1.5;margin:-4px 0 12px}
+    .coach-styles{flex-direction:column}
+    .coach-styles .radio-opt span{display:block;border-radius:14px;line-height:1.45}
+    .coach-styles .radio-opt span strong{font-weight:700}
     .page-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(34px,5.5vw,50px);letter-spacing:-.02em;line-height:.98;margin:0}
     .page-sub{color:var(--muted);font-size:15px;margin-top:12px;margin-bottom:36px}
     .nav-back{color:var(--accent);text-decoration:none;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid transparent;padding-bottom:3px;transition:border-color .15s}
@@ -76,6 +80,23 @@
               <input type="radio" name="tactical_pref" value="Quick finish — I go for winners early" {% if user.tactical_pref == 'Quick finish — I go for winners early' %}checked{% endif %} />
               <span>Quick finish — I go for winners early</span>
             </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Pick your coach</label>
+          <p class="field-hint">Same analysis, different coaching voice in the chat and Point Play. You can change it any time.</p>
+          <div class="radio-group coach-styles">
+            <label class="radio-opt">
+              <input type="radio" name="coach_style" value="" {% if not user.coach_style %}checked{% endif %} />
+              <span><strong>Balanced</strong> — a bit of everything: clear fixes with the why</span>
+            </label>
+            {% for key, style in styles.items() %}
+            <label class="radio-opt">
+              <input type="radio" name="coach_style" value="{{ key }}" {% if user.coach_style == key %}checked{% endif %} />
+              <span><strong>{{ style.name }}</strong> — {{ style.blurb }}</span>
+            </label>
+            {% endfor %}
           </div>
         </div>
 

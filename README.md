@@ -12,7 +12,8 @@ I have played tennis since I was five, and the problem I wanted to solve comes s
 - **Breakdown by the phases of the shot.** Results are organized the way professional video analysts break down a stroke, following phases my coach gave me: eight phases for every groundstroke (ready position, split step and first rotation, pre-extension, load, movement to the ball, movement to contact, follow-through, recovery) and nine for the serve (initial position through recovery for the +1). Measured metrics sit inside their phase with a score. Phases the camera can't measure yet are shown as checkpoints telling you what to look for when you watch your video back.
 - **Clear scores and fixes.** Every metric shows your result in plain tennis language next to the pro target, then expands to explain what it means, what the AI looked at, and how to improve. A "Common mistakes spotted" list names problems the way a coach would ("Dropped elbow at the trophy", "Too close to the body (jammed)").
 - **Weighted serve score.** The serve's overall score weights what matters most: toss 15%, trophy position 15%, contact 20%, with the rest shared across the other metrics.
-- **Ask your coach.** A chat panel on every result where you can ask "What should I fix first?" or "Give me a drill for this week" and get answers based on your exact numbers and your player profile.
+- **Ask your coach.** A chat panel on every shot result and every Point Play point where you can ask "What should I fix first?", "What should I have hit instead?" or "Give me a drill for this week" and get answers based on your exact numbers and your player profile.
+- **Pick your coach.** Choose a coaching style in your profile (Balanced, The Technician, The Straight Shooter, The Motivator, or The Tactician). The analysis stays the same, but the chat and Point Play coach you in that voice.
 - **Point Play.** Upload a full point and say whether you won or lost it. TennisAC tracks the ball (speed, depth, net clearance, spin, and how heavy the ball is) and uses Claude to analyze your strategy. It labels each of your shots as defence, neutral, or attack, rates your decision-making (building the point, shot selection, rally length awareness, and counterpunching), and suggests better shots with the reason they're better.
 - **Player profiles.** Your UTR, play style, dominant hand, backhand type, favorite shots, and the pro you want to play like all shape the feedback.
 - **Progress and coach mode.** Every analysis is saved so you can track progress over time and compare a before and after. Coaches can create teams and see their players' analyses.
@@ -40,7 +41,8 @@ I have played tennis since I was five, and the problem I wanted to solve comes s
 - `analysis/ball_physics.py`: tracks the ball and the court to measure speed, depth, net clearance, spin, and heaviness of each shot.
 - `analysis/trajectory_viz.py`: draws the shot trajectory map shown in Point Play.
 - `analysis/point_analyzer.py`: sends the point, the player's profile, and the measured ball physics to Claude and returns the structured strategy analysis, including the tactics ratings.
-- `analysis/coach_chat.py`: builds the analysis context for the "Ask your coach" chat and calls Claude for each reply.
+- `analysis/coach_chat.py`: builds the analysis context (a shot or a Point Play point) for the "Ask your coach" chat and calls Claude for each reply.
+- `analysis/coaching_styles.py`: the coaching styles a player can pick and the instruction each one gives the AI coach.
 - `templates/`: the HTML pages (Jinja templates), including `results.html` (shot breakdown and chat), `point_play_results.html`, `progress.html`, `compare.html`, `shared_card.html`, and the account pages.
 - `static/`: CSS, JavaScript, shot photos, and icons.
 - `models/pose_landmarker_lite.task`: the MediaPipe pose model.

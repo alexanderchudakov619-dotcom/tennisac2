@@ -1,0 +1,140 @@
+{# "Ask your coach" chat panel. The page sets chat_url, chat_sub,
+   chat_intro, chat_placeholder and chat_chips before including it. #}
+<style>
+    .chat-fab{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom, 0px));z-index:30;display:inline-flex;align-items:center;gap:8px;
+      font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:13px 20px;cursor:pointer;
+      box-shadow:0 14px 30px -10px rgba(200,70,0,.55);transition:transform .15s}
+    .chat-fab:hover{transform:translateY(-2px)}
+    .chat-panel{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom, 0px));z-index:31;width:min(380px,calc(100vw - 32px));height:min(560px,calc(100vh - 100px));
+      display:flex;flex-direction:column;background:#fff;border:1px solid var(--border-soft);border-radius:20px;box-shadow:0 24px 60px -20px rgba(80,30,0,.45);overflow:hidden}
+    .chat-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border-soft)}
+    .chat-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;line-height:1.1;margin:0;color:var(--ink)}
+    .chat-sub{font-size:12.5px;color:var(--muted-3);margin:2px 0 0}
+    .chat-close{background:none;border:0;font-size:24px;line-height:1;color:var(--muted-3);cursor:pointer;padding:0 4px}
+    .chat-log{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+    .chat-msg{max-width:88%;font-size:14px;line-height:1.55;padding:10px 13px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .chat-msg.coach{align-self:flex-start;background:rgba(255,80,0,.07);color:var(--ink);border-bottom-left-radius:4px;white-space:normal}
+    .chat-msg.coach strong{font-weight:700}
+    .chat-bullet{position:relative;padding-left:14px;margin-top:3px}
+    .chat-bullet::before{content:"";position:absolute;left:2px;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+    .chat-gap{height:.6em}
+    .chat-msg.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+    .chat-msg.pending{color:var(--muted-3);font-style:italic}
+    .chat-msg.error{align-self:flex-start;background:var(--bad-bg);color:var(--bad)}
+    .chat-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 12px}
+    .chat-chip{font:inherit;font-size:12.5px;color:var(--accent-deep);background:#fff;border:1px solid var(--border-soft);border-radius:999px;padding:6px 11px;cursor:pointer}
+    .chat-chip:hover{border-color:var(--accent)}
+    .chat-form{display:flex;gap:8px;align-items:flex-end;padding:12px 14px;border-top:1px solid var(--border-soft)}
+    .chat-form textarea{flex:1;font:inherit;font-size:14px;resize:none;max-height:120px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:14px;outline:none}
+    .chat-form textarea:focus{border-color:var(--accent)}
+    .chat-send{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:10px 16px;cursor:pointer}
+    .chat-send:disabled{opacity:.5;cursor:default}
+    .chat-fab[hidden],.chat-panel[hidden],.chat-chips[hidden]{display:none}
+</style>
+
+  <button type="button" class="chat-fab" id="chatOpen" aria-controls="chatPanel" aria-expanded="false">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+    Ask your coach
+  </button>
+  <section class="chat-panel" id="chatPanel" hidden aria-label="Ask your coach"
+           data-url="{{ chat_url }}">
+    <header class="chat-head">
+      <div>
+        <p class="chat-title">Ask your coach</p>
+        <p class="chat-sub">{{ chat_sub }}</p>
+      </div>
+      <button type="button" class="chat-close" id="chatClose" aria-label="Close chat">×</button>
+    </header>
+    <div class="chat-log" id="chatLog" aria-live="polite">
+      <div class="chat-msg coach">{{ chat_intro }}</div>
+    </div>
+    <div class="chat-chips" id="chatChips">
+      {% for chip in chat_chips %}<button type="button" class="chat-chip">{{ chip }}</button>{% endfor %}
+    </div>
+    <form class="chat-form" id="chatForm">
+      <textarea id="chatInput" rows="1" maxlength="2000" placeholder="{{ chat_placeholder }}" aria-label="Your question"></textarea>
+      <button type="submit" class="chat-send" id="chatSend">Send</button>
+    </form>
+  </section>
+
+<script>
+  (() => {
+    const chatPanel = document.getElementById('chatPanel');
+    if (chatPanel) {
+      const openBtn = document.getElementById('chatOpen'), log = document.getElementById('chatLog'),
+            form = document.getElementById('chatForm'), input = document.getElementById('chatInput'),
+            send = document.getElementById('chatSend'), chips = document.getElementById('chatChips');
+      const history = [];
+      const setOpen = (open) => {
+        chatPanel.hidden = !open;
+        openBtn.hidden = open;
+        openBtn.setAttribute('aria-expanded', open);
+        if (open) input.focus();
+      };
+      openBtn.addEventListener('click', () => setOpen(true));
+      document.getElementById('chatClose').addEventListener('click', () => setOpen(false));
+
+      // Coach replies may use "- " bullets and **bold**; built from DOM
+      // nodes (never innerHTML) so nothing in a reply can run as markup.
+      const renderReply = (el, text) => {
+        text.split('\n').forEach(line => {
+          const row = document.createElement('div');
+          const bullet = /^\s*[-*•]\s+/.test(line);
+          if (bullet) { row.className = 'chat-bullet'; line = line.replace(/^\s*[-*•]\s+/, ''); }
+          if (!line.trim()) row.className = 'chat-gap';
+          line.split(/\*\*(.+?)\*\*/).forEach((part, i) => {
+            if (!part) return;
+            if (i % 2) { const b = document.createElement('strong'); b.textContent = part; row.appendChild(b); }
+            else row.appendChild(document.createTextNode(part));
+          });
+          el.appendChild(row);
+        });
+      };
+      const addMsg = (who, text) => {
+        const el = document.createElement('div');
+        el.className = 'chat-msg ' + who;
+        if (who === 'coach') renderReply(el, text); else el.textContent = text;
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+        return el;
+      };
+      const ask = async (question) => {
+        question = question.trim();
+        if (!question || send.disabled) return;
+        chips.hidden = true;
+        addMsg('me', question);
+        history.push({role: 'user', content: question});
+        input.value = '';
+        send.disabled = true;
+        const thinking = addMsg('coach pending', 'Thinking…');
+        try {
+          const res = await fetch(chatPanel.dataset.url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({messages: history}),
+          });
+          const data = await res.json().catch(() => ({}));
+          thinking.remove();
+          if (data.reply) {
+            addMsg('coach', data.reply);
+            history.push({role: 'assistant', content: data.reply});
+          } else {
+            history.pop();  // keep the history valid: the question goes again with the next one
+            addMsg('error', data.error || 'Something went wrong. Try again.');
+          }
+        } catch (e) {
+          thinking.remove();
+          history.pop();
+          addMsg('error', "Couldn't reach the coach. Check your connection and try again.");
+        }
+        send.disabled = false;
+        input.focus();
+      };
+      form.addEventListener('submit', (e) => { e.preventDefault(); ask(input.value); });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input.value); }
+      });
+      chips.querySelectorAll('.chat-chip').forEach(c => c.addEventListener('click', () => ask(c.textContent)));
+    }
+  })();
+</script>

@@ -7,6 +7,8 @@ from typing import List, Literal, Optional
 import anthropic
 from pydantic import BaseModel, Field
 
+from analysis.coaching_styles import style_prompt
+
 
 # The model TennisAC uses for Point Play analysis.
 # claude-haiku-4-5 is fast and cheap ($1/M input) — good while you're testing
@@ -71,7 +73,7 @@ def _fallback(*lines):
             "point_flow": [], "tactics": None}
 
 
-def _describe_ball_physics(ball_physics):
+def describe_ball_physics(ball_physics):
     """Turns the tracked per-shot physics into plain-language lines for
     the prompt. Only ever states a number when its 'available' flag is
     True — there is no fallback guess here, because a wrong number stated
@@ -163,13 +165,15 @@ Video motion data:
         if point_context else "No additional context provided."
     )
 
-    ball_physics_summary = _describe_ball_physics(ball_physics)
+    ball_physics_summary = describe_ball_physics(ball_physics)
+    style = style_prompt((profile or {}).get('coach_style'))
+    style_line = f"\n{style} Apply this to how every text and detail is written; the scores stay objective.\n" if style else ""
 
     prompt = f"""You are TennisAC, an expert AI tennis coach analyzing a tennis point.
 
 PLAYER PROFILE:
 {player_ctx}
-
+{style_line}
 POINT RESULT: The player {point_result.upper()} this point.
 
 {context_line}
