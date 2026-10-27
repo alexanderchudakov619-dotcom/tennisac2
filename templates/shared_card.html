@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TennisAC — {{ card.shot_type | capitalize }} {{ card.overall_score | int if card.overall_score is not none else '—' }}/100</title>
+  {% include '_icons.html' %}
   <meta property="og:title" content="{{ card.shot_type | capitalize }}: {{ card.overall_score | int if card.overall_score is not none else '—' }}/100 on TennisAC" />
   <meta property="og:description" content="AI breakdown of a real {{ card.shot_type }}. What does yours score? Analyze yours free — no account needed." />
   <meta property="og:type" content="website" />

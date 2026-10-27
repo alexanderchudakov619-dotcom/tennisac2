@@ -3,7 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TennisAC — AI Tennis Coach</title>
+  <title>TennisAC — AI Tennis Coach | Analyze Your Serve, Forehand &amp; Backhand</title>
+  {% include '_icons.html' %}
+  {% set seo_desc = "TennisAC is a free AI tennis coach. Upload a phone video of your serve, forehand, backhand or a full point and get coach-style scores, fixes and drills." %}
+  <meta name="description" content="{{ seo_desc }}">
+  <link rel="canonical" href="{{ site_url }}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TennisAC">
+  <meta property="og:title" content="TennisAC — AI Tennis Coach">
+  <meta property="og:description" content="{{ seo_desc }}">
+  <meta property="og:url" content="{{ site_url }}/">
+  <meta property="og:image" content="{{ site_url }}{{ url_for('static', filename='img/og-image.jpg') }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  {# Tells Google the site's name is "TennisAC" (shown above the result)
+     and what the app is. #}
+  <script type="application/ld+json">
+  {{ {
+    "@context": "https://schema.org",
+    "@graph": [
+      {"@type": "WebSite", "@id": site_url ~ "/#website", "name": "TennisAC",
+       "alternateName": ["Tennis AC", "TennisAC App", "TennisAC AI Tennis Coach"], "url": site_url ~ "/"},
+      {"@type": "Organization", "@id": site_url ~ "/#org", "name": "TennisAC", "url": site_url ~ "/",
+       "logo": site_url ~ url_for('static', filename='img/logo.png'),
+       "founder": {"@type": "Person", "name": "Alexander Chudakov", "url": "https://alexanderchudakov.com"}},
+      {"@type": "WebApplication", "name": "TennisAC", "url": site_url ~ "/",
+       "applicationCategory": "SportsApplication", "operatingSystem": "Web browser",
+       "description": seo_desc, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+       "publisher": {"@id": site_url ~ "/#org"}}
+    ]
+  } | tojson }}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -27,8 +58,8 @@
     .hero-scan{position:absolute;left:0;right:0;height:2px;z-index:1;pointer-events:none;
       background:linear-gradient(90deg,transparent,rgba(255,90,0,.3),transparent);animation:scan-line 4.5s linear infinite}
     .hero-inner{position:relative;z-index:3;max-width:1180px;margin:0 auto;padding:44px clamp(20px,5vw,48px) 70px;width:100%}
-    .headline{margin-bottom:38px}
-    .headline-row{overflow:hidden}
+    .headline{margin:0 0 38px;font:inherit;letter-spacing:normal}
+    .headline-row{display:block;overflow:hidden}
     .headline-row .words{
       display:flex;gap:.18em;font-family:'Barlow Condensed',sans-serif;font-weight:900;
       font-size:clamp(52px,10vw,124px);line-height:.92;letter-spacing:-.025em;color:var(--ink);
@@ -179,17 +210,17 @@
     <div class="hero-inner">
       <p class="eyebrow">AI Tennis Coach · Personalised to your UTR</p>
 
-      <div class="headline">
-        <div class="headline-row"><div class="words" style="animation-delay:.05s">READ YOUR</div></div>
-        <div class="headline-row"><div class="words" style="animation-delay:.18s">GAME LIKE A</div></div>
-        <div class="headline-row">
+      <h1 class="headline">
+        <span class="headline-row"><span class="words" style="animation-delay:.05s">READ YOUR</span></span>
+        <span class="headline-row"><span class="words" style="animation-delay:.18s">GAME LIKE A</span></span>
+        <span class="headline-row">
           <span class="glitch" style="animation-delay:.3s">
             <span class="g-main">COACH WOULD.</span>
             <span class="g1" aria-hidden="true">COACH WOULD.</span>
             <span class="g2" aria-hidden="true">COACH WOULD.</span>
           </span>
-        </div>
-      </div>
+        </span>
+      </h1>
 
       <div class="hero-sub-row">
         <p>Upload a shot or a full point. TennisAC breaks down your mechanics frame by frame and returns coaching tuned to <span class="serif-em" style="color:#FF6030">your</span> game.</p>

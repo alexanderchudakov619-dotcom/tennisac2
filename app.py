@@ -466,7 +466,8 @@ def keep_signed_in():
 
 # Pages someone who hasn't agreed to the privacy policy can still reach.
 PRIVACY_EXEMPT = {'static', 'privacy', 'privacy_accept', 'logout', 'delete_account',
-                  'forgot_password', 'reset_password', 'shared_card', 'log_share'}
+                  'forgot_password', 'reset_password', 'shared_card', 'log_share',
+                  'robots_txt', 'sitemap_xml', 'favicon'}
 
 @app.before_request
 def require_privacy_agreement():
@@ -481,6 +482,34 @@ def require_privacy_agreement():
     # Guests agree when they sign up; logging in re-checks the account.
     session['privacy_ok'] = True
     return None
+
+@app.context_processor
+def inject_site_url():
+    # The one public address (no www), for canonical links and structured data.
+    return {'site_url': SITE_URL}
+
+# Public pages for search engines. Pages that need an account, or that
+# would create a guest account when a crawler visits them, stay out.
+SITEMAP_PAGES = ('/', '/challenge', '/signup', '/login', '/privacy')
+
+@app.route('/robots.txt')
+def robots_txt():
+    lines = ['User-agent: *', 'Allow: /',
+             *(f'Disallow: {p}' for p in ('/admin', '/progress', '/compare', '/teams', '/profile', '/account',
+                                          '/reset', '/forgot', '/point-play', '/r/', '/analyze', '/try')),
+             f'Sitemap: {SITE_URL}/sitemap.xml']
+    return '\n'.join(lines) + '\n', 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    urls = ''.join(f'<url><loc>{SITE_URL}{p}</loc></url>' for p in SITEMAP_PAGES)
+    body = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+    return body, 200, {'Content-Type': 'application/xml'}
+
+@app.route('/favicon.ico')
+def favicon():
+    # Browsers and Google ask for /favicon.ico at the site root.
+    return app.send_static_file('favicon.ico')
 
 @app.route('/privacy')
 def privacy():
