@@ -1,10 +1,6 @@
 # TennisAC: AI Tennis Coach
 
-#### Video Demo: <PASTE YOUR YOUTUBE URL HERE>
-
-#### Live site: https://tennisacapp.com
-
-#### Description:
+**Live site: https://tennisacapp.com**
 
 TennisAC is a web app that coaches tennis players from an ordinary phone video. You upload a clip of a serve, forehand, backhand, rally, or a whole point, and TennisAC tracks your body through the stroke, scores each part of your technique from 0 to 100, explains what each score means, and tells you exactly what to fix and how to train it. It is built for intermediate to advanced players, around high school varsity level and up, who already know the basics and want the kind of detailed feedback a coach gives in a lesson.
 
@@ -63,9 +59,5 @@ I have played tennis since I was five, and the problem I wanted to solve comes s
 ## Tech stack
 
 Python, Flask, PostgreSQL, MediaPipe and OpenCV for pose and ball tracking, NumPy, the Anthropic Claude API, and HTML, CSS and JavaScript. Hosted on Render.
-
-## AI usage
-
-In line with CS50's policy, I used AI tools (Claude) as a helper while building this project, for example to explain concepts, debug, and help write and review code. The project idea, the tennis knowledge behind the metrics, and the design decisions are my own, and the coaching phases come from my coach.
 
 Built by Alexander Chudakov, 2026.
