@@ -25,12 +25,16 @@
     .too-good-text{color:var(--muted);font-size:14px;line-height:1.6}
 
     .tips-list{display:flex;flex-direction:column;gap:12px}
-    .tip-card{background:#fff;border:1px solid var(--border-soft);border-left:3px solid var(--accent);border-radius:14px;padding:18px 20px;cursor:pointer;
+    .tip-more{clear:both;margin:8px 0 0 31px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+    .tip-more::after{content:" +"}
+    .tip-card.open .tip-more::after{content:" −"}
+    .tip-card{background:#fff;border:1px solid var(--border-soft);border-left:3px solid var(--accent);border-radius:14px;padding:18px 20px;
       box-shadow:0 12px 28px -20px rgba(120,50,0,.25);transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s cubic-bezier(.16,1,.3,1)}
-    .tip-card:hover{transform:translateY(-1px)}
+    .tip-card.expandable-card{cursor:pointer}
+    .tip-card.expandable-card:hover{transform:translateY(-1px)}
     .tip-card .tip-icon{display:flex;float:left;margin-right:12px;color:var(--accent)}
-    .tip-text{font-size:14.5px;line-height:1.6;color:var(--ink);overflow:hidden}
-    .tip-details{clear:both;max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--muted);font-size:13.5px;line-height:1.6}
+    .tip-text{font-size:14.5px;line-height:1.6;color:var(--ink);overflow:hidden;margin:0}
+    .tip-details{clear:both;padding-left:31px;max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--muted);font-size:13.5px;line-height:1.6}
     .tip-details p{margin-top:12px}
     .tip-details strong{color:var(--ink);font-weight:600}
     .tip-card.open .tip-details{max-height:300px}
@@ -150,46 +154,40 @@
       </div>
       {% endif %}
 
+      {# Newer plays store each item as {text, detail}; older ones as plain
+         text, which shows without anything to expand. #}
+      {% macro coach_card(item, color, icon) %}
+        {% set text = item.text if item is mapping else item %}
+        {% set detail = item.detail if item is mapping else '' %}
+        <div class="tip-card{% if detail %} expandable-card{% endif %}"{% if detail %} onclick="this.classList.toggle('open')"{% endif %}{% if color %} style="border-left-color: var({{ color }});"{% endif %}>
+          <div class="tip-icon"{% if color %} style="color:var({{ color }})"{% endif %}>{{ icon | safe }}</div>
+          <p class="tip-text">{{ text }}</p>
+          {% if detail %}
+          <p class="tip-more">Why it matters</p>
+          <div class="tip-details"><p>{{ detail }}</p></div>
+          {% endif %}
+        </div>
+      {% endmacro %}
+      {% set icon_point = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M4.3 6.8c2.8 2.6 2.8 8 0 10.4M19.7 6.8c-2.8 2.6-2.8 8 0 10.4"/></svg>' %}
+      {% set icon_idea = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.3 21h3.4"/><path d="M12 3.2a6 6 0 00-3.5 10.9c.6.45 1 1.15 1 1.9v.5h5v-.5c0-.75.4-1.45 1-1.9A6 6 0 0012 3.2z"/></svg>' %}
+      {% set icon_alert = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.7l9 15.8H3l9-15.8z"/><path d="M12 10v4.3M12 17h.01"/></svg>' %}
+
       <h2 class="section-title">Point Breakdown</h2>
       <div class="tips-list">
-        {% for item in analysis.breakdown %}
-        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')">
-          <div class="tip-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M4.3 6.8c2.8 2.6 2.8 8 0 10.4M19.7 6.8c-2.8 2.6-2.8 8 0 10.4"/></svg></div>
-          <p class="tip-text">{{ item }}</p>
-          <div class="tip-details">
-            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-          </div>
-        </div>
-        {% endfor %}
+        {% for item in analysis.breakdown %}{{ coach_card(item, None, icon_point) }}{% endfor %}
       </div>
 
       {% if analysis.shot_suggestions %}
       <h2 class="section-title">Shot Suggestions</h2>
       <div class="tips-list">
-        {% for item in analysis.shot_suggestions %}
-        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--good);">
-          <div class="tip-icon" style="color:var(--good)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.3 21h3.4"/><path d="M12 3.2a6 6 0 00-3.5 10.9c.6.45 1 1.15 1 1.9v.5h5v-.5c0-.75.4-1.45 1-1.9A6 6 0 0012 3.2z"/></svg></div>
-          <p class="tip-text">{{ item }}</p>
-          <div class="tip-details">
-            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-          </div>
-        </div>
-        {% endfor %}
+        {% for item in analysis.shot_suggestions %}{{ coach_card(item, '--good', icon_idea) }}{% endfor %}
       </div>
       {% endif %}
 
       {% if analysis.popup_tips %}
       <h2 class="section-title">Opponent Pattern Alert</h2>
       <div class="tips-list">
-        {% for item in analysis.popup_tips %}
-        <div class="tip-card expandable-card" onclick="this.classList.toggle('open')" style="border-left-color: var(--bad);">
-          <div class="tip-icon" style="color:var(--bad)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.7l9 15.8H3l9-15.8z"/><path d="M12 10v4.3M12 17h.01"/></svg></div>
-          <p class="tip-text">{{ item }}</p>
-          <div class="tip-details">
-            <p><strong>Extra coach detail:</strong> This is where TennisAC can explain the why behind the point, the better pattern, and what to train next.</p>
-          </div>
-        </div>
-        {% endfor %}
+        {% for item in analysis.popup_tips %}{{ coach_card(item, '--bad', icon_alert) }}{% endfor %}
       </div>
       {% endif %}
 

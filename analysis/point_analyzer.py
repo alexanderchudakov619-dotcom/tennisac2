@@ -36,10 +36,15 @@ class Tactics(BaseModel):
     counterpunch: TacticRating = Field(description="Redirecting the opponent's pace from defence (often down the line). score must be null unless one actually happened")
 
 
+class CoachPoint(BaseModel):
+    text: str = Field(description="The point itself, one or two sentences")
+    detail: str = Field(description="Shown when the player taps the card: 1-2 sentences on why it matters in this point, then what to train next (a drill, pattern or cue)")
+
+
 class PointAnalysis(BaseModel):
-    breakdown: List[str]
-    shot_suggestions: List[str]
-    popup_tips: List[str]
+    breakdown: List[CoachPoint]
+    shot_suggestions: List[CoachPoint]
+    popup_tips: List[CoachPoint]
     too_good: str
     point_flow: List[FlowShot]
     tactics: Tactics
@@ -188,6 +193,7 @@ Rules:
 - popup_tips: only include if you can detect a clear opponent pattern from the description. Can be empty array.
 - too_good: only say "too good" if there was GENUINELY nothing the player could do from their position
 - Keep each item concise, specific, and actionable. Talk directly to the player.
+- Every breakdown, shot_suggestions and popup_tips item has a text and a detail. The detail is the deeper "why" for that item in this point plus one concrete thing to train (a drill, pattern or cue) — don't just restate the text.
 - Use tennis terminology correctly (down the line, crosscourt, inside-out, swing volley, etc.)
 - Reference the player's profile when relevant (their UTR, playing style, preferred shots)
 

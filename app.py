@@ -977,7 +977,9 @@ def load_point_plays(user_id):
             breakdown = (json.loads(row['analysis_json'] or '{}').get('breakdown') or [''])
         except (TypeError, ValueError, AttributeError):
             breakdown = ['']
-        row['summary'] = breakdown[0] if breakdown else ''
+        first = breakdown[0] if breakdown else ''
+        # Newer plays store each item as {text, detail}; older ones as plain text.
+        row['summary'] = first.get('text', '') if isinstance(first, dict) else first
         out.append(row)
     return out
 
