@@ -19,6 +19,8 @@ from analysis.video_processor import process_video
 from analysis.pose_analysis import generate_feedback, build_phases, find_mistakes
 from analysis.coach_chat import build_context, build_point_context, clean_history, ask_coach
 from analysis.coaching_styles import COACHING_STYLES
+from analysis.pro_coaches import (TOPICS, METRIC_TOPICS, TACTIC_TOPICS, SHOT_TYPES, safe_url,
+                                  topics_for_shot, topics_for_point, find_pro_tips, pro_tips_text)
 from analysis.point_analyzer import analyze_point_with_ai, describe_ball_physics
 from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
@@ -292,6 +294,27 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Pro Coaches Feedback: instruction from coaches and academies who have
+    # given TennisAC permission to use it, each tagged with the metric or
+    # tactic it teaches. permission_note records how permission was given.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS coach_content (
+            id SERIAL PRIMARY KEY,
+            coach_name TEXT NOT NULL,
+            coach_credential TEXT,
+            coach_link TEXT,
+            topic TEXT NOT NULL,
+            shot_type TEXT,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            video_url TEXT,
+            permission_note TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_coach_content_topic ON coach_content (topic) WHERE active')
 
     db.commit()
     db.close()
@@ -900,6 +923,7 @@ def analyze():
     )
     token = create_result_card(db, shot_type, feedback, user_id=user['id'])
     db.commit()
+    pro_tips = find_pro_tips(db, topics_for_shot(feedback['scores']), shot_type)
     db.close()
 
     return render_template(
@@ -913,6 +937,7 @@ def analyze():
         fence_view=fence_view,
         ball_physics=ball_physics,
         trajectory_svg=safe_trajectory_svg(ball_physics),
+        pro_tips=pro_tips,
     )
 
 @app.route('/point-play', methods=['GET', 'POST'])
@@ -969,6 +994,7 @@ def point_play():
              trajectory_svg),
         ).fetchone()
         db.commit()
+        pro_tips = find_pro_tips(db, topics_for_point(analysis), 'point')
         db.close()
         return render_template('point_play_results.html',
                                analysis=analysis,
@@ -976,7 +1002,8 @@ def point_play():
                                ball_physics=ball_physics,
                                trajectory_svg=trajectory_svg,
                                user=user,
-                               chat_play_id=play['id'])
+                               chat_play_id=play['id'],
+                               pro_tips=pro_tips)
     return render_template('point_play.html', user=user)
 
 def load_point_plays(user_id):
@@ -1006,19 +1033,25 @@ def point_play_saved(play_id):
     db = get_db()
     play = db.execute('SELECT * FROM point_play_history WHERE id = %s', (play_id,)).fetchone()
     allowed = play is not None and can_view_player(db, user, play['user_id'])
-    db.close()
     if not allowed:
+        db.close()
         abort(404)
-    try:
-        analysis = json.loads(play['analysis_json'] or '{}')
-        ball_physics = json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None
-    except (TypeError, ValueError):
-        analysis, ball_physics = {}, None
+    analysis, ball_physics = load_play(play)
+    pro_tips = find_pro_tips(db, topics_for_point(analysis), 'point')
+    db.close()
     # The chat is the player's own; a coach viewing it sees the analysis only.
     chat_play_id = play_id if play['user_id'] == user['id'] else None
     return render_template('point_play_results.html', analysis=analysis, point_result=play['point_result'],
                            ball_physics=ball_physics, trajectory_svg=play['trajectory_svg'], user=user,
-                           chat_play_id=chat_play_id)
+                           chat_play_id=chat_play_id, pro_tips=pro_tips)
+
+def load_play(play):
+    """A saved point's analysis and ball physics, parsed."""
+    try:
+        return (json.loads(play['analysis_json'] or '{}'),
+                json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None)
+    except (TypeError, ValueError):
+        return {}, None
 
 @app.route('/point-play/<int:play_id>/chat', methods=['POST'])
 def point_play_chat(play_id):
@@ -1026,18 +1059,16 @@ def point_play_chat(play_id):
     played it can ask, under the same hourly cap as the shot chat."""
     db = get_db()
     play = db.execute('SELECT * FROM point_play_history WHERE id = %s', (play_id,)).fetchone()
-    user = db.execute('SELECT * FROM users WHERE id = %s', (play['user_id'],)).fetchone() if play else None
-    db.close()
     if not play or play['user_id'] != session.get('user_id'):
+        db.close()
         return {'error': "You can only ask about your own points."}, 403
-    try:
-        analysis = json.loads(play['analysis_json'] or '{}')
-        ball_physics = json.loads(play['ball_physics_json']) if play['ball_physics_json'] else None
-    except (TypeError, ValueError):
-        analysis, ball_physics = {}, None
+    user = db.execute('SELECT * FROM users WHERE id = %s', (play['user_id'],)).fetchone()
+    analysis, ball_physics = load_play(play)
+    pro_tips = find_pro_tips(db, topics_for_point(analysis), 'point')
+    db.close()
     context = build_point_context(play['point_result'], play['point_context'], analysis,
                                   describe_ball_physics(ball_physics), chat_profile(user))
-    return run_chat(context, 'point', user['coach_style'] if user else None)
+    return run_chat(context + "\n\n" + pro_tips_text(pro_tips), 'point', user['coach_style'] if user else None)
 
 
 def load_history(user_id):
@@ -1329,16 +1360,18 @@ def coach_chat(token):
     card = db.execute('SELECT * FROM result_cards WHERE token = %s', (token,)).fetchone()
     owner = card and ((card['user_id'] and card['user_id'] == session.get('user_id'))
                       or (card['visitor_id'] and card['visitor_id'] == session.get('visitor_id')))
-    user = db.execute('SELECT * FROM users WHERE id = %s', (card['user_id'],)).fetchone() if owner and card['user_id'] else None
-    db.close()
     if not owner:
+        db.close()
         return {'error': "You can only ask about your own analysis."}, 403
-
+    user = db.execute('SELECT * FROM users WHERE id = %s', (card['user_id'],)).fetchone() if card['user_id'] else None
     scores = json.loads(card['scores_json'] or '{}')
+    pro_tips = find_pro_tips(db, topics_for_shot(scores), card['shot_type'])
+    db.close()
+
     phases = build_phases(card['shot_type'], scores)
     context = build_context(card['shot_type'], card['overall_score'], card['overall_label'],
                             scores, phases, find_mistakes(scores, phases), chat_profile(user))
-    return run_chat(context, 'shot', user['coach_style'] if user else None)
+    return run_chat(context + "\n\n" + pro_tips_text(pro_tips), 'shot', user['coach_style'] if user else None)
 
 def chat_profile(user):
     """The player's profile for the coach chat, or None for a guest who
@@ -1443,6 +1476,60 @@ def admin_users():
     growth['trial_conversion'] = round(100 * growth['trial_signups'] / growth['trials'], 1) if growth['trials'] else None
 
     return render_template('admin_users.html', user=user, users=users, growth=growth)
+
+@app.route('/admin/coaches', methods=['GET', 'POST'])
+def admin_coaches():
+    """Pro Coaches Feedback library: add instruction from coaches who have
+    given TennisAC permission, tagged with the metric or tactic it teaches."""
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    form = {k: request.form.get(k, '').strip() for k in
+            ('coach_name', 'coach_credential', 'coach_link', 'topic', 'shot_type', 'title', 'body',
+             'video_url', 'permission_note')}
+    error = None
+    db = get_db()
+    if request.method == 'POST':
+        if not (form['coach_name'] and form['title'] and form['body']):
+            error = "Coach name, title and the coaching content are all required."
+        elif form['topic'] not in TOPICS or form['shot_type'] not in SHOT_TYPES:
+            error = "Pick a topic and shot type from the lists."
+        elif not form['permission_note'] or request.form.get('permission_confirmed') != 'yes':
+            error = "Confirm the coach gave permission, and note how (e.g. \"Written OK by email, Oct 2026\")."
+        elif (form['coach_link'] and not safe_url(form['coach_link'])) or (form['video_url'] and not safe_url(form['video_url'])):
+            error = "Links must be full web addresses starting with https://"
+        else:
+            db.execute(
+                '''INSERT INTO coach_content (coach_name, coach_credential, coach_link, topic, shot_type,
+                                              title, body, video_url, permission_note)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                (form['coach_name'][:120], form['coach_credential'][:160] or None, safe_url(form['coach_link']),
+                 form['topic'], form['shot_type'] or None, form['title'][:160], form['body'][:2000],
+                 safe_url(form['video_url']), form['permission_note'][:300]))
+            db.commit()
+            db.close()
+            flash(f"Added {form['coach_name']}'s tip on {form['topic']}.")
+            return redirect(url_for('admin_coaches'))
+    content = db.execute('SELECT * FROM coach_content ORDER BY active DESC, created_at DESC').fetchall()
+    db.close()
+    return render_template('admin_coaches.html', user=user, content=content, form=form, error=error,
+                           metric_topics=METRIC_TOPICS, tactic_topics=TACTIC_TOPICS, shot_types=SHOT_TYPES)
+
+@app.route('/admin/coaches/<int:content_id>/<action>', methods=['POST'])
+def admin_coach_action(content_id, action):
+    """Pause, resume or delete a piece of partner content (e.g. if a coach
+    withdraws permission)."""
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL or action not in ('pause', 'resume', 'delete'):
+        return redirect(url_for('index'))
+    db = get_db()
+    if action == 'delete':
+        db.execute('DELETE FROM coach_content WHERE id = %s', (content_id,))
+    else:
+        db.execute('UPDATE coach_content SET active = %s WHERE id = %s', (action == 'resume', content_id))
+    db.commit()
+    db.close()
+    return redirect(url_for('admin_coaches'))
 
 if __name__ == '__main__':
     app.run(debug=True)

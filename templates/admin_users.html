@@ -61,6 +61,7 @@
           <div class="nav-avatar">{{ (user['name'] or '?')[0]|upper }}</div>
           <span class="name">{{ user['name'] }}</span>
         </div>
+        <a class="nav-link" href="{{ url_for('admin_coaches') }}">Pro Coaches</a>
         <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
         <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
     </div>

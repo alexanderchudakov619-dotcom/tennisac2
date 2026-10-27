@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Pro Coaches</title>
+  {% include '_icons.html' %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:900px;margin:0 auto;padding:0 clamp(20px,5vw,48px)}
+    .results-hero{text-align:center;padding:64px 0 32px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7.5vw,76px);letter-spacing:-.02em;line-height:.92;margin:0 0 14px}
+    .hero-desc{color:var(--muted);font-size:15.5px;max-width:560px;margin:0 auto;line-height:1.65}
+
+    .card{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:26px clamp(18px,4vw,30px);box-shadow:0 16px 36px -24px rgba(120,50,0,.3);margin-bottom:22px}
+    .card-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 4px}
+    .card-sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 20px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .field{margin-bottom:16px}
+    .field .field-label{margin-bottom:8px}
+    .hint{color:var(--muted-3);font-size:12.5px;margin-top:6px}
+    textarea.input{min-height:120px}
+    .permission{display:flex;gap:10px;align-items:flex-start;background:var(--ok-bg);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.5;color:var(--ink);margin-bottom:16px}
+    .permission input{margin-top:3px;accent-color:var(--accent)}
+    .msg{border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:18px}
+    .msg.err{background:var(--bad-bg);color:var(--bad)}
+    .msg.ok{background:var(--good-bg);color:var(--good)}
+
+    .item{border-top:1px solid var(--border-soft);padding:16px 0}
+    .item:first-of-type{border-top:none;padding-top:0}
+    .item-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .item-title{font-weight:600;color:var(--ink);margin:0}
+    .item-meta{color:var(--muted-3);font-size:12.5px;margin:3px 0 0}
+    .item-body{color:var(--muted);font-size:13.5px;line-height:1.6;margin:8px 0 0}
+    .tag{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:rgba(255,80,0,.08);color:var(--accent-deep);margin-right:6px}
+    .tag.off{background:var(--border-soft);color:var(--muted-3)}
+    .actions{display:flex;gap:6px}
+    .actions button{font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--border-soft);background:#fff;color:var(--ink);cursor:pointer}
+    .actions button.danger{color:var(--bad)}
+    .empty{color:var(--muted);font-size:14px;line-height:1.6}
+    @media(max-width:600px){.grid2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Admin</div>
+    </div>
+    <div class="nav-right">
+        <a class="nav-link" href="{{ url_for('admin_users') }}">Users</a>
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Admin Only</p>
+        <h1 class="results-title">Pro Coaches</h1>
+        <p class="hero-desc">Instruction from partner coaches and academies. When a player's analysis is weak on a topic, the matching tip shows on their results as "From the pros", credited to the coach, and the coach chat can quote it. Only add content a coach has given TennisAC permission to use.</p>
+    </div>
+</section>
+
+<section class="wrap">
+    {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
+    {% for m in get_flashed_messages() %}<p class="msg ok">{{ m }}</p>{% endfor %}
+
+    <form method="POST" class="card">
+        <h2 class="card-title">Add a coach tip</h2>
+        <p class="card-sub">One tip per topic. Use the coach's own words or a summary they've approved.</p>
+        <div class="grid2">
+            <div class="field">
+                <label class="field-label" for="coach_name">Coach name</label>
+                <input class="input" id="coach_name" name="coach_name" maxlength="120" value="{{ form.coach_name }}" required>
+            </div>
+            <div class="field">
+                <label class="field-label" for="coach_credential">Academy / credential</label>
+                <input class="input" id="coach_credential" name="coach_credential" maxlength="160" placeholder="e.g. Head Coach, Smith Tennis Academy" value="{{ form.coach_credential }}">
+            </div>
+        </div>
+        <div class="grid2">
+            <div class="field">
+                <label class="field-label" for="topic">Topic it teaches</label>
+                <select class="input" id="topic" name="topic" required>
+                    <option value="">Choose…</option>
+                    <optgroup label="Shot metrics">
+                        {% for t in metric_topics %}<option value="{{ t }}" {% if form.topic == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="Point Play tactics">
+                        {% for t in tactic_topics %}<option value="{{ t }}" {% if form.topic == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="shot_type">Shot</label>
+                <select class="input" id="shot_type" name="shot_type">
+                    {% for s in shot_types %}<option value="{{ s }}" {% if form.shot_type == s %}selected{% endif %}>{{ s | capitalize if s else 'Any shot' }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="title">Title</label>
+            <input class="input" id="title" name="title" maxlength="160" placeholder="e.g. Get the elbow up before you swing up" value="{{ form.title }}" required>
+        </div>
+        <div class="field">
+            <label class="field-label" for="body">Coaching content</label>
+            <textarea class="input" id="body" name="body" maxlength="2000" required>{{ form.body }}</textarea>
+        </div>
+        <div class="grid2">
+            <div class="field">
+                <label class="field-label" for="coach_link">Coach / academy website</label>
+                <input class="input" id="coach_link" name="coach_link" placeholder="https://" value="{{ form.coach_link }}">
+            </div>
+            <div class="field">
+                <label class="field-label" for="video_url">Video (optional)</label>
+                <input class="input" id="video_url" name="video_url" placeholder="https://" value="{{ form.video_url }}">
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="permission_note">How permission was given</label>
+            <input class="input" id="permission_note" name="permission_note" maxlength="300" placeholder="e.g. Written OK by email from the coach, Oct 2026" value="{{ form.permission_note }}" required>
+            <p class="hint">Kept with the tip as a record. If a coach withdraws permission, pause or delete their tips below.</p>
+        </div>
+        <label class="permission">
+            <input type="checkbox" name="permission_confirmed" value="yes" required>
+            <span>This coach has given TennisAC permission to show this content, with their name, to players.</span>
+        </label>
+        <button type="submit" class="btn-cta">Add tip</button>
+    </form>
+
+    <div class="card">
+        <h2 class="card-title">Library ({{ content | length }})</h2>
+        {% for c in content %}
+        <div class="item">
+            <div class="item-top">
+                <div>
+                    <p class="item-title">{{ c.title }}</p>
+                    <p class="item-meta">{{ c.coach_name }}{% if c.coach_credential %} · {{ c.coach_credential }}{% endif %} · permission: {{ c.permission_note }}</p>
+                </div>
+                <div class="actions">
+                    <form method="POST" action="{{ url_for('admin_coach_action', content_id=c.id, action='resume' if not c.active else 'pause') }}">
+                        <button type="submit">{{ 'Resume' if not c.active else 'Pause' }}</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin_coach_action', content_id=c.id, action='delete') }}" onsubmit="return this.dataset.ok === '1' || (this.dataset.ok = '1', this.querySelector('button').textContent = 'Click again to delete', false)">
+                        <button type="submit" class="danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+            <p style="margin:8px 0 0">
+                <span class="tag{% if not c.active %} off{% endif %}">{{ c.topic }}</span>
+                <span class="tag{% if not c.active %} off{% endif %}">{{ c.shot_type | capitalize if c.shot_type else 'Any shot' }}</span>
+                {% if not c.active %}<span class="tag off">Paused</span>{% endif %}
+            </p>
+            <p class="item-body">{{ c.body }}</p>
+        </div>
+        {% else %}
+        <p class="empty">No coach content yet. Add your first partner coach above (your own coach is a great place to start), and their tips will appear on players' results the next time they're weak on that topic.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+</footer>
+
+<script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

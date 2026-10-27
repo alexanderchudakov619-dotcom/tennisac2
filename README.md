@@ -15,6 +15,7 @@ I have played tennis since I was five, and the problem I wanted to solve comes s
 - **Ask your coach.** A chat panel on every shot result and every Point Play point where you can ask "What should I fix first?", "What should I have hit instead?" or "Give me a drill for this week" and get answers based on your exact numbers and your player profile.
 - **Pick your coach.** Choose a coaching style in your profile (Balanced, The Technician, The Straight Shooter, The Motivator, or The Tactician). The analysis stays the same, but the chat and Point Play coach you in that voice.
 - **Point Play.** Upload a full point and say whether you won or lost it. TennisAC tracks the ball (speed, depth, net clearance, spin, and how heavy the ball is) and uses Claude to analyze your strategy. It labels each of your shots as defence, neutral, or attack, rates your decision-making (building the point, shot selection, rally length awareness, and counterpunching), and suggests better shots with the reason they're better.
+- **From the pros.** When an analysis flags a weak area, TennisAC shows matching advice from partner coaches and academies, credited by name, and the coach chat can quote it. Coaches are only added with their permission, through an admin page that records how permission was given and lets content be paused or removed.
 - **Player profiles.** Your UTR, play style, dominant hand, backhand type, favorite shots, and the pro you want to play like all shape the feedback.
 - **Progress and coach mode.** Every analysis is saved so you can track progress over time and compare a before and after. Coaches can create teams and see their players' analyses.
 - **Sharing and challenges.** Share a result as a public card or enter the serve, forehand, or backhand challenge leaderboard.
@@ -43,6 +44,7 @@ I have played tennis since I was five, and the problem I wanted to solve comes s
 - `analysis/point_analyzer.py`: sends the point, the player's profile, and the measured ball physics to Claude and returns the structured strategy analysis, including the tactics ratings.
 - `analysis/coach_chat.py`: builds the analysis context (a shot or a Point Play point) for the "Ask your coach" chat and calls Claude for each reply.
 - `analysis/coaching_styles.py`: the coaching styles a player can pick and the instruction each one gives the AI coach.
+- `analysis/pro_coaches.py`: matches a player's weakest metrics or tactics to partner coach content.
 - `templates/`: the HTML pages (Jinja templates), including `results.html` (shot breakdown and chat), `point_play_results.html`, `progress.html`, `compare.html`, `shared_card.html`, and the account pages.
 - `static/`: CSS, JavaScript, shot photos, and icons.
 - `models/pose_landmarker_lite.task`: the MediaPipe pose model.
