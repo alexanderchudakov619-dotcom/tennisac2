@@ -37,6 +37,36 @@
 
     .cta-section{text-align:center;padding:30px 0 54px}
 
+    .tactics-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:38px 0 18px}
+    .tactics-head .section-title{margin:0}
+    .tactic-score{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;line-height:1;padding:6px 14px;border-radius:12px}
+    .tactic-score small{font-size:14px;font-weight:700;opacity:.7}
+    .ts-good{background:var(--good-bg);color:var(--good)}
+    .ts-ok{background:var(--ok-bg);color:var(--ok)}
+    .ts-bad{background:var(--bad-bg);color:var(--bad)}
+    .flow-k{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-3);margin:0 0 10px}
+    .flow{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:8px}
+    .flow-shot{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.5}
+    .flow-tag{flex-shrink:0;width:68px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:3px 0;border-radius:999px;margin-top:1px}
+    .flow-defence .flow-tag{background:var(--bad-bg);color:var(--bad)}
+    .flow-neutral .flow-tag{background:var(--ok-bg);color:var(--ok)}
+    .flow-attack .flow-tag{background:var(--good-bg);color:var(--good)}
+    .flow-body{color:var(--muted)}
+    .flow-body strong{color:var(--ink);font-weight:600}
+    .tactic-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .tactic-card{background:#fff;border:1px solid var(--border-soft);border-radius:16px;padding:18px 20px;cursor:pointer;box-shadow:0 12px 28px -20px rgba(120,50,0,.25)}
+    .tactic-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .tactic-name{font-weight:600;font-size:15px;color:var(--ink)}
+    .tactic-badge{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;color:var(--ink)}
+    .tactic-na .tactic-badge{font-size:13px;color:var(--muted-3);letter-spacing:.05em}
+    .tactic-bar{height:6px;border-radius:99px;background:rgba(255,80,0,.08);overflow:hidden;margin-top:10px}
+    .tactic-bar span{display:block;height:100%;border-radius:99px}
+    .tactic-note{color:var(--muted);font-size:13.5px;line-height:1.6;margin:10px 0 0}
+    .tactic-def{max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--muted);font-size:13px;line-height:1.6;margin:0}
+    .tactic-def strong{color:var(--ink);font-weight:600}
+    .tactic-card.open .tactic-def{max-height:200px;margin-top:10px}
+    @media(max-width:640px){.tactic-grid{grid-template-columns:1fr}}
+
   </style>
 </head>
 <body>
@@ -72,6 +102,53 @@
       {% endif %}
 
       {% include '_ball_physics.html' %}
+
+      {% if analysis.tactics %}
+      {% set tactic_info = {
+        'building_the_point': ('Defence → Neutral → Attack', 'Building the point: neutralizing when you are not in control, competing to take control from neutral, and finishing when you have it — with the right shot for each situation.'),
+        'shot_selection': ('Shot Selection', 'Choosing the right shot for the moment: attacking short balls, not overhitting neutral balls, and not trying to hurt your opponent from a defensive position.'),
+        'rally_length': ('Rally Length Awareness', 'The discipline to play as long as it takes instead of finishing faster than necessary — and how much the first 4 shots (serve, return, +1) shape the point.'),
+        'counterpunch': ('Counterpunch', 'A risky shot from defence: on the run but balanced, you use the opponent’s pace to redirect the ball (usually down the line) where they don’t expect it. Only scored when one happens.'),
+      } %}
+      <div class="tactics-head">
+        <h2 class="section-title">Tactics</h2>
+        {% if analysis.tactical_score is not none %}
+        {% set ts = analysis.tactical_score %}
+        <span class="tactic-score {{ 'ts-good' if ts >= 70 else ('ts-ok' if ts >= 50 else 'ts-bad') }}">{{ ts }}<small>/100</small></span>
+        {% endif %}
+      </div>
+
+      {% if analysis.point_flow %}
+      <p class="flow-k">Point flow</p>
+      <ol class="flow">
+        {% for s in analysis.point_flow %}
+        <li class="flow-shot flow-{{ s.situation }}">
+          <span class="flow-tag">{{ {'defence': 'Defence', 'neutral': 'Neutral', 'attack': 'Attack'}[s.situation] }}</span>
+          <span class="flow-body"><strong>{{ s.shot }}</strong> {{ s.note }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% endif %}
+
+      <div class="tactic-grid">
+        {% for key, (name, definition) in tactic_info.items() %}
+        {% set t = analysis.tactics[key] %}
+        {% if t %}
+        <div class="tactic-card{% if t.score is none %} tactic-na{% endif %}" onclick="this.classList.toggle('open')">
+          <div class="tactic-top">
+            <span class="tactic-name">{{ name }}</span>
+            <span class="tactic-badge">{{ t.score if t.score is not none else 'N/A' }}</span>
+          </div>
+          {% if t.score is not none %}
+          <div class="tactic-bar"><span style="width:{{ t.score }}%;background:{{ '#5B9B23' if t.score >= 70 else ('#C8811E' if t.score >= 50 else '#C8362B') }}"></span></div>
+          {% endif %}
+          <p class="tactic-note">{{ t.note }}</p>
+          <p class="tactic-def"><strong>What this means:</strong> {{ definition }}</p>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
 
       <h2 class="section-title">Point Breakdown</h2>
       <div class="tips-list">

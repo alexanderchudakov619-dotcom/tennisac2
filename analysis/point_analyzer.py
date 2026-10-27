@@ -2,10 +2,10 @@
 point_analyzer.py
 Uses the Anthropic API to analyze tennis point strategy from video motion data.
 """
-import os
-import json
-import urllib.request
-import urllib.error
+from typing import List, Literal, Optional
+
+import anthropic
+from pydantic import BaseModel, Field
 
 
 # The model TennisAC uses for Point Play analysis.
@@ -13,6 +13,57 @@ import urllib.error
 # with your first users. If you want sharper tactical reasoning, swap this to
 # "claude-sonnet-5" (a bit pricier but smarter).
 CLAUDE_MODEL = "claude-haiku-4-5"
+
+
+# The shape Claude's answer must take (enforced by structured outputs, so
+# the JSON always parses and every field is there).
+
+class FlowShot(BaseModel):
+    shot: str = Field(description="Which of the player's shots, e.g. 'Your return', 'Your 2nd forehand', 'Your final shot'")
+    situation: Literal["defence", "neutral", "attack"]
+    note: str = Field(description="One short sentence: why this was defence/neutral/attack and whether the shot choice fit it")
+
+
+class TacticRating(BaseModel):
+    score: Optional[int] = Field(description="0-100, or null if there isn't enough information in the point to judge it")
+    note: str = Field(description="One or two sentences on what in this point earned the score, or why it can't be judged")
+
+
+class Tactics(BaseModel):
+    building_the_point: TacticRating = Field(description="Defence -> neutral -> attack: progressing the point with the right shot for each situation")
+    shot_selection: TacticRating = Field(description="Attacking short balls, not overhitting neutral balls, not going for too much from defence")
+    rally_length: TacticRating = Field(description="Rally length awareness: patience, not finishing faster than needed; the first 4 shots (serve, return, +1)")
+    counterpunch: TacticRating = Field(description="Redirecting the opponent's pace from defence (often down the line). score must be null unless one actually happened")
+
+
+class PointAnalysis(BaseModel):
+    breakdown: List[str]
+    shot_suggestions: List[str]
+    popup_tips: List[str]
+    too_good: str
+    point_flow: List[FlowShot]
+    tactics: Tactics
+
+
+TACTIC_NAMES = {
+    "building_the_point": "Defence → Neutral → Attack",
+    "shot_selection": "Shot Selection",
+    "rally_length": "Rally Length Awareness",
+    "counterpunch": "Counterpunch",
+}
+
+
+def tactical_score(tactics):
+    """Average of the tactics that could be judged; a counterpunch that
+    never happened (null) doesn't count against the player."""
+    scores = [max(0, min(100, t["score"])) for t in (tactics or {}).values()
+              if isinstance(t, dict) and isinstance(t.get("score"), int)]
+    return round(sum(scores) / len(scores)) if scores else None
+
+
+def _fallback(*lines):
+    return {"breakdown": list(lines), "shot_suggestions": [], "popup_tips": [], "too_good": "",
+            "point_flow": [], "tactics": None}
 
 
 def _describe_ball_physics(ball_physics):
@@ -66,18 +117,13 @@ def analyze_point_with_ai(motion_metrics, point_result, point_context, profile, 
     structured strategic analysis.
     """
 
-    # Read the API key from the environment. NEVER hard-code your key in the file.
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return {
-            "breakdown": [
-                "TennisAC's AI coach isn't configured yet.",
-                "The ANTHROPIC_API_KEY environment variable is not set on the server.",
-            ],
-            "shot_suggestions": [],
-            "popup_tips": [],
-            "too_good": "",
-        }
+    # The key comes from the ANTHROPIC_API_KEY environment variable. NEVER
+    # hard-code your key in the file.
+    try:
+        client = anthropic.Anthropic()
+    except anthropic.AnthropicError:
+        return _fallback("TennisAC's AI coach isn't configured yet.",
+                         "The ANTHROPIC_API_KEY environment variable is not set on the server.")
 
     # Build player context string
     player_ctx = ""
@@ -133,24 +179,6 @@ physics (when present) for your tactical read. Only reference a speed/depth/heig
 heaviness number if it's explicitly given above — never invent one that isn't there.
 
 Based on this information, provide a detailed strategic point analysis.
-You MUST respond with ONLY a valid JSON object in exactly this format, no other text:
-
-{{
-  "breakdown": [
-    "First observation about the point strategy...",
-    "Second observation...",
-    "Third observation..."
-  ],
-  "shot_suggestions": [
-    "Suggestion for an alternative shot that could have been played...",
-    "Another suggestion if applicable..."
-  ],
-  "popup_tips": [
-    "If you detect a dominant opponent pattern, give a tip here...",
-    "Another pattern tip if applicable..."
-  ],
-  "too_good": "Only fill this in if the opponent's shot was genuinely too good and there was nothing the player could do. Otherwise leave as empty string."
-}}
 
 Rules:
 - breakdown: 2-4 items analyzing what happened strategically in the point
@@ -161,58 +189,53 @@ Rules:
 - too_good: only say "too good" if there was GENUINELY nothing the player could do from their position
 - Keep each item concise, specific, and actionable. Talk directly to the player.
 - Use tennis terminology correctly (down the line, crosscourt, inside-out, swing volley, etc.)
-- Reference the player's profile when relevant (their UTR, playing style, preferred shots)"""
+- Reference the player's profile when relevant (their UTR, playing style, preferred shots)
 
-    payload = json.dumps({
-        "model": CLAUDE_MODEL,
-        "max_tokens": 1000,
-        "messages": [{"role": "user", "content": prompt}]
-    }).encode('utf-8')
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": api_key,
-        },
-        method="POST"
-    )
+Tactics (how coaches break down decision-making in a rally):
+- point_flow: the player's shots in order (as many as you can tell apart, up to 8), each labelled by the situation the player was in when hitting it:
+  defence = not in control, pushed wide or deep, trying to neutralize; neutral = both players trying to take control;
+  attack = in control, a short or weak ball to hurt, creating chances to force an error or hit a winner.
+  Base it on the description and the tracked depth/speed. If the shots can't be told apart, give fewer entries rather than inventing any.
+- tactics: score each 0-100 with a short note tied to something that happened in this point.
+  - building_the_point: did the player progress defence -> neutral -> attack with the right shot for each situation (neutralize when stretched, build when neutral, finish when in control)?
+  - shot_selection: attacking short balls, not overhitting neutral balls, not going for winners from defence, keeping rally control.
+  - rally_length: patience and discipline — playing as long as it takes instead of forcing it early; for short points, the quality of the first 4 shots (serve, return, +1).
+  - counterpunch: a shot from defence, on the run but balanced, that uses the opponent's pace to redirect (often down the line) and turn the point. If no counterpunch happened in this point, score must be null and the note should say it didn't come up.
+  - Use null for any category the information can't support, and say why in the note. A null is better than a guess."""
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            text = data['content'][0]['text'].strip()
-            # Strip markdown fences if the model wrapped the JSON in ```
-            if text.startswith('```'):
-                text = text.split('\n', 1)[1]
-                text = text.rsplit('```', 1)[0]
-            return json.loads(text)
+        response = client.with_options(timeout=60.0).messages.parse(
+            model=CLAUDE_MODEL,
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}],
+            output_format=PointAnalysis,
+        )
+    except anthropic.AuthenticationError:
+        print("[TennisAC] Point analysis: the Anthropic API key was rejected.")
+        return _fallback("The AI coach could not analyze this point (your API key may be invalid).",
+                         "Check the server logs for details.")
+    except anthropic.RateLimitError:
+        return _fallback("The AI coach is busy right now.", "Please try this point again in a minute.")
+    except anthropic.APIStatusError as e:
+        # Surface the real reason (wrong model name, bad request, outage, etc.)
+        print(f"[TennisAC] Anthropic API error {e.status_code}: {e.message}")
+        return _fallback(f"The AI coach could not analyze this point (API returned {e.status_code}).",
+                         "Check the server logs for details.")
+    except anthropic.APIConnectionError:
+        print("[TennisAC] Point analysis could not reach the Anthropic API.")
+        return _fallback("Point analysis could not be completed at this time.",
+                         "Please try again in a moment.")
+    except ValueError as e:
+        # A reply cut off mid-JSON fails validation (pydantic and JSON
+        # errors are both ValueErrors).
+        print(f"[TennisAC] Point analysis reply didn't parse: {e}")
+        return _fallback("Point analysis could not be completed at this time.",
+                         "Please try again with a clear video of the full point.")
 
-    except urllib.error.HTTPError as e:
-        # Surface the real reason (bad key, wrong model name, rate limit, etc.)
-        body = e.read().decode('utf-8', errors='ignore')
-        print(f"[TennisAC] Anthropic API error {e.code}: {body}")
-        reason = "your API key may be invalid" if e.code == 401 else f"API returned {e.code}"
-        return {
-            "breakdown": [
-                f"The AI coach could not analyze this point ({reason}).",
-                "Check the server logs for details.",
-            ],
-            "shot_suggestions": [],
-            "popup_tips": [],
-            "too_good": "",
-        }
-
-    except Exception as e:
-        print(f"[TennisAC] Point analysis failed: {e}")
-        return {
-            "breakdown": [
-                "Point analysis could not be completed at this time.",
-                "Please try again with a clear video of the full point.",
-            ],
-            "shot_suggestions": [],
-            "popup_tips": [],
-            "too_good": "",
-        }
+    if response.parsed_output is None:
+        print(f"[TennisAC] Point analysis returned no usable answer (stop_reason={response.stop_reason}).")
+        return _fallback("Point analysis could not be completed at this time.",
+                         "Please try again with a clear video of the full point.")
+    analysis = response.parsed_output.model_dump()
+    analysis["tactical_score"] = tactical_score(analysis["tactics"])
+    return analysis
