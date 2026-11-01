@@ -33,7 +33,7 @@
     .filters a{font-size:13.5px;font-weight:600;text-decoration:none;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:999px;padding:8px 16px}
     .filters a[aria-current="page"]{background:rgba(255,72,0,.09);border-color:var(--accent);color:var(--accent-deep)}
 
-    .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}
+    .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
     .tile{background:#fff;border:1px solid var(--border-soft);border-radius:16px;padding:18px 20px}
     .tile-label{font-size:13.5px;font-weight:600;color:var(--text-secondary);margin:0}
     .tile-value{font-size:34px;font-weight:700;line-height:1.1;color:var(--text-primary);margin:6px 0 4px}
@@ -132,6 +132,7 @@
         {{ tile('Shot analyses', current.shots, 'shots') }}
         {{ tile('Point Play points', current.points, 'points') }}
         {{ tile('Results shared', current.shares, 'shares') }}
+        {{ tile('Bots blocked', current.blocked, 'blocked') }}
     </section>
 
     <section class="charts">

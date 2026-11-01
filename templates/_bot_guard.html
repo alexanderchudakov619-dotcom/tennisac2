@@ -1,0 +1,11 @@
+{# Bot protection inside a form (see bot_check in app.py): when the form
+   was loaded, a hidden field only bots fill in, and the Turnstile check
+   when it's turned on. #}
+<input type="hidden" name="form_stamp" value="{{ form_stamp }}">
+<div style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden" aria-hidden="true">
+  <label>Leave this empty <input type="text" name="tac_hp" tabindex="-1" autocomplete="off"></label>
+</div>
+{% if turnstile_site_key %}
+<div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="light" data-size="flexible" style="margin-top:20px"></div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}

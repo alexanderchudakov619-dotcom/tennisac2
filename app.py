@@ -9,10 +9,12 @@ import threading
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from contextlib import contextmanager
 from datetime import timedelta
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer, BadData
 import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
@@ -53,6 +55,17 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
 MAIL_FROM = os.environ.get('MAIL_FROM', 'TennisAC <noreply@tennisacapp.com>')
 RESET_LINK_HOURS = 1
 RESETS_PER_HOUR = 3
+
+# Bot protection on the signup and password-reset forms. Cloudflare
+# Turnstile (a mostly invisible CAPTCHA) turns on once both keys are set;
+# the honeypot, speed check and per-network limits always run.
+TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY')
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY')
+# Submissions per network per hour. High enough for a whole team signing
+# up on school Wi-Fi; bots that hammer one form go well past it.
+FORM_LIMITS_PER_HOUR = {'signup': 25, 'forgot': 10}
+# Faster than a person can fill in the form after it loads.
+MIN_FORM_SECONDS = 2
 
 # Only this account can view the /admin/users page.
 ADMIN_EMAIL = 'alexanderchudakov619@gmail.com'
@@ -315,6 +328,21 @@ def init_db():
         )
     ''')
     db.execute('CREATE INDEX IF NOT EXISTS idx_coach_content_topic ON coach_content (topic) WHERE active')
+
+    # Every signup / password-reset submission and what the bot checks made
+    # of it ('ok' or why it was blocked), for the per-network limits and the
+    # "Bots blocked" stat. Only a salted hash of the IP is kept.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS form_submissions (
+            id SERIAL PRIMARY KEY,
+            form TEXT NOT NULL,
+            ip_hash TEXT,
+            outcome TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_form_submissions_ip ON form_submissions (form, ip_hash, created_at)')
+    db.execute("DELETE FROM form_submissions WHERE created_at < NOW() - INTERVAL '90 days'")
 
     db.commit()
     db.close()
@@ -612,6 +640,13 @@ def try_free():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
+        db = get_db()
+        blocked = bot_check(db, 'signup')
+        db.commit()
+        db.close()
+        if blocked:
+            flash(BOT_MESSAGES[blocked])
+            return render_template('signup.html')
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         name = request.form.get('name', '').strip()
@@ -690,6 +725,82 @@ def finish_sign_in(db, user):
     session['privacy_ok'] = bool(user['privacy_accepted_at'])
     session.permanent = True
 
+_form_clock = URLSafeTimedSerializer(app.secret_key, salt='form-loaded-at')
+
+@app.context_processor
+def inject_bot_guard():
+    # A signed "this form was loaded at" stamp for the speed check, and the
+    # Turnstile key when the CAPTCHA is turned on.
+    return {'form_stamp': _form_clock.dumps(time.time()), 'turnstile_site_key': TURNSTILE_SITE_KEY}
+
+def turnstile_passed():
+    """Asks Cloudflare whether the Turnstile check on this form passed.
+    True when Turnstile is off. If Cloudflare can't be reached, lets the
+    person through (and logs it) rather than locking real users out."""
+    if not (TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY):
+        return True
+    token = request.form.get('cf-turnstile-response', '')
+    if not token:
+        return False
+    ip = (request.headers.get('X-Forwarded-For') or request.remote_addr or '').split(',')[0].strip()
+    req = urllib.request.Request(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        data=urllib.parse.urlencode({'secret': TURNSTILE_SECRET_KEY, 'response': token, 'remoteip': ip}).encode(),
+        method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return bool(json.loads(resp.read()).get('success'))
+    except Exception:
+        app.logger.exception('Could not reach Turnstile; letting the submission through')
+        return True
+
+def bot_check(db, form):
+    """Runs the bot checks on a signup or password-reset submission and
+    records the result. Returns None if it looks like a person, else the
+    reason: 'captcha', 'no_stamp', 'honeypot', 'too_fast' or 'rate'. Caller
+    commits."""
+    ip_hash = client_ip_hash()
+    recent = db.execute(
+        '''SELECT COUNT(*) AS n FROM form_submissions
+           WHERE form = %s AND ip_hash = %s AND created_at > NOW() - INTERVAL '1 hour' ''', (form, ip_hash)
+    ).fetchone()['n']
+    try:
+        loaded_at = _form_clock.loads(request.form.get('form_stamp', ''), max_age=7 * 86400)
+    except BadData:
+        # No stamp (a bot posting straight to the form) or an old one (a
+        # page left open for days). The form comes back with a fresh stamp,
+        # so a real person gets through on the next click.
+        loaded_at = None
+    human = turnstile_passed()
+    if not human:
+        reason = 'captcha'
+    elif loaded_at is None:
+        reason = 'no_stamp'
+    elif request.form.get('tac_hp') and not (TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY):
+        # The hidden honeypot field only a bot would fill. When Turnstile is
+        # on and already vouched for the person, trust it over the honeypot
+        # (in case a browser autofilled the hidden field).
+        reason = 'honeypot'
+    elif time.time() - loaded_at < MIN_FORM_SECONDS:
+        reason = 'too_fast'
+    elif recent >= FORM_LIMITS_PER_HOUR[form]:
+        reason = 'rate'
+    else:
+        reason = None
+    db.execute('INSERT INTO form_submissions (form, ip_hash, outcome) VALUES (%s, %s, %s)',
+               (form, ip_hash, reason or 'ok'))
+    if reason:
+        app.logger.info('Blocked %s submission: %s', form, reason)
+    return reason
+
+BOT_MESSAGES = {
+    'captcha': "Please complete the quick check below and try again.",
+    'honeypot': "Something went wrong. Please try again.",
+    'no_stamp': "This page had expired. Please press the button again.",
+    'too_fast': "That was quick! Please check your details and press the button again.",
+    'rate': "Too many attempts from your network. Please try again in an hour.",
+}
+
 def send_email(to, subject, html, text):
     """Sends one email through Resend. Returns True if Resend accepted it."""
     if not RESEND_API_KEY:
@@ -721,6 +832,11 @@ def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         db = get_db()
+        blocked = bot_check(db, 'forgot')
+        db.commit()
+        if blocked:
+            db.close()
+            return render_template('forgot_password.html', error=BOT_MESSAGES[blocked], email=email)
         user = db.execute('SELECT * FROM users WHERE LOWER(email) = %s AND NOT is_guest', (email,)).fetchone()
         if user:
             recent = db.execute(
@@ -1561,7 +1677,8 @@ def stats_totals(db, since_sql, since_params, until_sql='LOCALTIMESTAMP', until_
                (SELECT COUNT(*) FROM users WHERE (is_guest OR was_guest) AND {where}) AS guests,
                (SELECT COUNT(*) FROM analysis_history WHERE {where}) AS shots,
                (SELECT COUNT(*) FROM point_play_history WHERE {where}) AS points,
-               (SELECT COUNT(*) FROM share_events WHERE {where}) AS shares''', p * 5).fetchone())
+               (SELECT COUNT(*) FROM share_events WHERE {where}) AS shares,
+               (SELECT COUNT(*) FROM form_submissions WHERE outcome <> 'ok' AND {where}) AS blocked''', p * 6).fetchone())
 
 @app.route('/admin/stats')
 def admin_stats():
