@@ -1,0 +1,12 @@
+{# Tabs between the admin pages, shown under each page's heading. #}
+<style>
+  .admin-tabs{display:flex;justify-content:center;gap:6px;margin:22px auto 0;padding:5px;background:#fff;border:1px solid var(--border-soft);border-radius:999px;width:fit-content;max-width:100%}
+  .admin-tabs a{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:14px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:var(--muted);padding:8px 18px;border-radius:999px}
+  .admin-tabs a:hover{color:var(--ink)}
+  .admin-tabs a[aria-current="page"]{background:var(--accent);color:#fff}
+</style>
+<nav class="admin-tabs" aria-label="Admin pages">
+  {% for endpoint, name in (('admin_users', 'Users'), ('admin_stats', 'Stats'), ('admin_coaches', 'Pro Coaches')) %}
+  <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ name }}</a>
+  {% endfor %}
+</nav>
