@@ -1531,5 +1531,84 @@ def admin_coach_action(content_id, action):
     db.close()
     return redirect(url_for('admin_coaches'))
 
+# Admin stats: what can be picked as the range, in days (None = all time).
+STATS_RANGES = {'7d': 7, '30d': 30, '90d': 90, '12m': 365, 'all': None}
+
+def stats_series(db, start_sql, start_params, grain):
+    """Counts per day/week/month from the range start until now, with a
+    row for every period (zeros included). Signups are accounts made with
+    an email; guest tries are browsers that used TennisAC without one
+    (whether or not they signed up later)."""
+    step = {'day': '1 day', 'week': '1 week', 'month': '1 month'}[grain]
+    rows = db.execute(f'''
+        SELECT b.bucket,
+          (SELECT COUNT(*) FROM users WHERE NOT is_guest AND date_trunc(%s, created_at) = b.bucket) AS signups,
+          (SELECT COUNT(*) FROM users WHERE (is_guest OR was_guest) AND date_trunc(%s, created_at) = b.bucket) AS guests,
+          (SELECT COUNT(*) FROM analysis_history WHERE date_trunc(%s, created_at) = b.bucket) AS shots,
+          (SELECT COUNT(*) FROM point_play_history WHERE date_trunc(%s, created_at) = b.bucket) AS points,
+          (SELECT COUNT(*) FROM share_events WHERE date_trunc(%s, created_at) = b.bucket) AS shares
+        FROM generate_series(date_trunc(%s, ({start_sql})), date_trunc(%s, LOCALTIMESTAMP), %s::interval) AS b(bucket)
+        ORDER BY b.bucket''',
+        (grain,) * 5 + (grain,) + start_params + (grain, step)).fetchall()
+    return [dict(r) for r in rows]
+
+def stats_totals(db, since_sql, since_params, until_sql='LOCALTIMESTAMP', until_params=()):
+    """Totals for one window of time, for the stat tiles."""
+    where = f'created_at >= ({since_sql}) AND created_at < ({until_sql})'
+    p = since_params + until_params
+    return dict(db.execute(f'''
+        SELECT (SELECT COUNT(*) FROM users WHERE NOT is_guest AND {where}) AS signups,
+               (SELECT COUNT(*) FROM users WHERE (is_guest OR was_guest) AND {where}) AS guests,
+               (SELECT COUNT(*) FROM analysis_history WHERE {where}) AS shots,
+               (SELECT COUNT(*) FROM point_play_history WHERE {where}) AS points,
+               (SELECT COUNT(*) FROM share_events WHERE {where}) AS shares''', p * 5).fetchone())
+
+@app.route('/admin/stats')
+def admin_stats():
+    """Growth over time: signups, guest tries, analyses and shares per
+    day, week or month, with charts and the numbers behind them."""
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    range_key = request.args.get('range', '30d')
+    if range_key not in STATS_RANGES:
+        range_key = '30d'
+    days = STATS_RANGES[range_key]
+
+    db = get_db()
+    if days:
+        start_sql, start_params = "LOCALTIMESTAMP - %s * INTERVAL '1 day'", (days,)
+        grain = 'day' if days <= 90 else 'week'
+        current = stats_totals(db, start_sql, start_params)
+        previous = stats_totals(db, "LOCALTIMESTAMP - %s * INTERVAL '1 day'", (2 * days,), start_sql, start_params)
+    else:
+        start_sql, start_params = "SELECT COALESCE(MIN(created_at), LOCALTIMESTAMP) FROM users", ()
+        span = db.execute(f"SELECT EXTRACT(DAY FROM LOCALTIMESTAMP - ({start_sql})) AS d").fetchone()['d'] or 0
+        grain = 'day' if span <= 31 else ('week' if span <= 180 else 'month')
+        current = stats_totals(db, "'-infinity'::timestamp", ())
+        previous = None
+    series = stats_series(db, start_sql, start_params, grain)
+    first = series[0]['bucket'] if series else None
+    accounts_before = db.execute('SELECT COUNT(*) AS n FROM users WHERE NOT is_guest AND created_at < %s',
+                                 (first,)).fetchone()['n'] if first else 0
+    total_accounts = db.execute('SELECT COUNT(*) AS n FROM users WHERE NOT is_guest').fetchone()['n']
+    shot_mix = db.execute(f'''SELECT shot_type, COUNT(*) AS n FROM analysis_history
+                              WHERE created_at >= ({start_sql}) GROUP BY shot_type''', start_params).fetchall()
+    db.close()
+
+    running = accounts_before
+    for row in series:
+        running += row['signups']
+        row['accounts'] = running
+        row['label'] = row['bucket'].strftime('%b %Y' if grain == 'month' else '%b %-d')
+        row['bucket'] = row['bucket'].strftime('%Y-%m-%d')
+    mix = {r['shot_type']: r['n'] for r in shot_mix}
+    shot_mix = [{'name': n.capitalize(), 'n': mix.get(n, 0)} for n in ('serve', 'forehand', 'backhand', 'rally')]
+    shot_mix.append({'name': 'Point Play', 'n': current['points']})
+
+    return render_template('admin_stats.html', user=user, range_key=range_key, ranges=STATS_RANGES,
+                           grain=grain, series=series, current=current, previous=previous,
+                           total_accounts=total_accounts, shot_mix=shot_mix)
+
 if __name__ == '__main__':
     app.run(debug=True)
