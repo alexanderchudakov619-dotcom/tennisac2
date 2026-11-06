@@ -18,7 +18,8 @@ from itsdangerous import URLSafeTimedSerializer, BadData
 import psycopg2.extras
 import psycopg2.pool
 from analysis.video_processor import process_video
-from analysis.pose_analysis import generate_feedback, build_phases, find_mistakes
+from analysis.pose_analysis import generate_feedback, build_phases, find_mistakes, SCORING_VERSION
+from analysis.coach_review import clean_review, summarize, agreement, VERDICT_LABELS, OVERALL_VERDICTS
 from analysis.coach_chat import build_context, build_point_context, clean_history, ask_coach
 from analysis.coaching_styles import COACHING_STYLES
 from analysis.pro_coaches import (TOPICS, METRIC_TOPICS, TACTIC_TOPICS, SHOT_TYPES, safe_url,
@@ -26,6 +27,7 @@ from analysis.pro_coaches import (TOPICS, METRIC_TOPICS, TACTIC_TOPICS, SHOT_TYP
 from analysis.point_analyzer import analyze_point_with_ai, describe_ball_physics
 from analysis.ball_physics import analyze_point_ball_physics, court_fully_visible
 from analysis.trajectory_viz import render_trajectory_svg
+from spam_review import review as review_spam, SIGNAL_LABELS
 
 app = Flask(__name__)
 # Signs the login cookie. If this leaks, anyone can forge a cookie and sign
@@ -343,6 +345,26 @@ def init_db():
     ''')
     db.execute('CREATE INDEX IF NOT EXISTS idx_form_submissions_ip ON form_submissions (form, ip_hash, created_at)')
     db.execute("DELETE FROM form_submissions WHERE created_at < NOW() - INTERVAL '90 days'")
+
+    # Coach-validated accuracy: a coach who saw the stroke marks each metric
+    # TennisAC scored as right / partly / wrong / unsure (metrics_json) and
+    # says whether the overall score was fair. scoring_version on each
+    # analysis says which version of the rules produced it.
+    db.execute('ALTER TABLE analysis_history ADD COLUMN IF NOT EXISTS scoring_version TEXT')
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS coach_reviews (
+            id SERIAL PRIMARY KEY,
+            analysis_id INTEGER NOT NULL REFERENCES analysis_history(id) ON DELETE CASCADE,
+            coach_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            metrics_json TEXT NOT NULL,
+            overall_verdict TEXT,
+            coach_score REAL,
+            missed TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (analysis_id, coach_id)
+        )
+    ''')
 
     db.commit()
     db.close()
@@ -940,6 +962,8 @@ def delete_account_data(db, user, visitor_ids):
     cards = '(SELECT token FROM result_cards WHERE user_id = %s OR visitor_id = ANY(%s))'
     db.execute(f'DELETE FROM share_events WHERE token IN {cards}', (uid, visitor_ids))
     db.execute('DELETE FROM result_cards WHERE user_id = %s OR visitor_id = ANY(%s)', (uid, visitor_ids))
+    db.execute('''DELETE FROM coach_reviews WHERE coach_id = %s
+                  OR analysis_id IN (SELECT id FROM analysis_history WHERE user_id = %s)''', (uid, uid))
     db.execute('DELETE FROM analysis_history WHERE user_id = %s', (uid,))
     db.execute('DELETE FROM point_play_history WHERE user_id = %s', (uid,))
     db.execute('DELETE FROM team_members WHERE user_id = %s', (uid,))
@@ -1026,15 +1050,16 @@ def analyze():
     db.execute(
         '''
         INSERT INTO analysis_history
-        (user_id, shot_type, overall_score, overall_label, scores_json)
-        VALUES (%s, %s, %s, %s, %s)
+        (user_id, shot_type, overall_score, overall_label, scores_json, scoring_version)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ''',
         (
             user['id'],
             shot_type,
             feedback.get('overall_score'),
             feedback.get('overall_label'),
-            json.dumps(feedback.get('scores', {}))
+            json.dumps(feedback.get('scores', {})),
+            SCORING_VERSION,
         )
     )
     token = create_result_card(db, shot_type, feedback, user_id=user['id'])
@@ -1195,7 +1220,18 @@ def load_history(user_id):
         'SELECT * FROM analysis_history WHERE user_id = %s ORDER BY created_at DESC',
         (user_id,)
     ).fetchall()
+    reviews = db.execute(
+        '''SELECT r.analysis_id, r.coach_id, r.metrics_json, u.name AS coach_name
+           FROM coach_reviews r JOIN users u ON u.id = r.coach_id
+           JOIN analysis_history a ON a.id = r.analysis_id
+           WHERE a.user_id = %s ORDER BY r.updated_at''', (user_id,)
+    ).fetchall()
     db.close()
+    by_analysis = {}
+    for r in reviews:
+        verdicts = json.loads(r['metrics_json'] or '{}').values()
+        by_analysis.setdefault(r['analysis_id'], []).append(
+            {'coach_id': r['coach_id'], 'coach_name': r['coach_name'], 'agreement': agreement(verdicts)})
     rows = []
     for item in history:
         row = dict(item)
@@ -1204,6 +1240,7 @@ def load_history(user_id):
         except (TypeError, ValueError):
             row['scores'] = {}
         row['phases'] = build_phases(row['shot_type'], row['scores'])
+        row['reviews'] = by_analysis.get(row['id'], [])
         rows.append(row)
     return rows
 
@@ -1395,6 +1432,64 @@ def remove_player(team_id, player_id):
         db.commit()
     db.close()
     return redirect(url_for('team_detail', team_id=team_id))
+
+# ── Coach review (coach-validated accuracy) ───────────────────────────────
+
+@app.route('/analyses/<int:analysis_id>/review', methods=['GET', 'POST'])
+def review_analysis(analysis_id):
+    """A coach checks one of their player's analyses: is each score TennisAC
+    gave right, partly right or wrong, and was the overall score fair?
+    The player can't review their own; the admin can enter a review a
+    coach gave in person."""
+    user = get_or_create_user()
+    db = get_db()
+    analysis = db.execute('SELECT * FROM analysis_history WHERE id = %s', (analysis_id,)).fetchone()
+    is_admin = user['email'] == ADMIN_EMAIL
+    if (not analysis or is_guest(user) or analysis['user_id'] == user['id']
+            or not (is_admin or can_view_player(db, user, analysis['user_id']))):
+        db.close()
+        abort(404)
+    analysis = dict(analysis)
+    try:
+        analysis['scores'] = json.loads(analysis['scores_json']) if analysis['scores_json'] else {}
+    except (TypeError, ValueError):
+        analysis['scores'] = {}
+    rated = [n for n, d in analysis['scores'].items() if isinstance(d.get('score'), (int, float))]
+    back = safe_next(request.values.get('next')) if request.values.get('next') else url_for('teams')
+
+    if request.method == 'POST':
+        review = clean_review(request.form, rated)
+        if not review['metrics'] and not review['overall']:
+            db.close()
+            flash('Mark at least one score, or say whether the overall score was fair.')
+            return redirect(url_for('review_analysis', analysis_id=analysis_id, next=back))
+        db.execute(
+            '''INSERT INTO coach_reviews (analysis_id, coach_id, metrics_json, overall_verdict, coach_score, missed)
+               VALUES (%s, %s, %s, %s, %s, %s)
+               ON CONFLICT (analysis_id, coach_id) DO UPDATE SET
+                 metrics_json = EXCLUDED.metrics_json, overall_verdict = EXCLUDED.overall_verdict,
+                 coach_score = EXCLUDED.coach_score, missed = EXCLUDED.missed, updated_at = CURRENT_TIMESTAMP''',
+            (analysis_id, user['id'], json.dumps(review['metrics']), review['overall'],
+             review['coach_score'], review['missed']))
+        db.commit()
+        db.close()
+        flash('Thanks, your review is saved. It helps make TennisAC more accurate.')
+        return redirect(back)
+
+    player = db.execute('SELECT name FROM users WHERE id = %s', (analysis['user_id'],)).fetchone()
+    existing = db.execute('SELECT * FROM coach_reviews WHERE analysis_id = %s AND coach_id = %s',
+                          (analysis_id, user['id'])).fetchone()
+    db.close()
+    if existing:
+        existing = dict(existing, metrics=json.loads(existing['metrics_json'] or '{}'))
+    phases = [p for p in build_phases(analysis['shot_type'], analysis['scores'])
+              if any(n in rated for n in p['metrics'])]
+    unphased = [n for n in rated if not any(n in p['metrics'] for p in phases)]
+    if unphased:
+        phases.append({'number': '+', 'name': 'Other scores', 'metrics': unphased})
+    return render_template('review_analysis.html', user=user, analysis=analysis, player=player,
+                           phases=phases, rated=rated, existing=existing, back=back,
+                           verdict_labels=VERDICT_LABELS, overall_verdicts=OVERALL_VERDICTS)
 
 @app.errorhandler(ServerBusy)
 def server_busy(e):
@@ -1646,6 +1741,69 @@ def admin_coach_action(content_id, action):
     db.commit()
     db.close()
     return redirect(url_for('admin_coaches'))
+
+def inactive_accounts(db):
+    """Accounts that never did anything: no analyses, Point Play or shared
+    results, no profile, no team, and never used TennisAC as a guest
+    first. The only accounts the spam review will ever offer to delete."""
+    return [dict(r) for r in db.execute('''
+        SELECT u.id, u.name, u.email, u.created_at FROM users u
+        WHERE NOT u.is_guest AND NOT u.was_guest AND u.email <> %s
+          AND u.play_like IS NULL AND u.utr IS NULL AND u.player_type IS NULL
+          AND NOT EXISTS (SELECT 1 FROM analysis_history a WHERE a.user_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM point_play_history p WHERE p.user_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM result_cards c WHERE c.user_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.user_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM teams t WHERE t.coach_id = u.id)
+        ORDER BY u.created_at''', (ADMIN_EMAIL,)).fetchall()]
+
+@app.route('/admin/spam', methods=['GET', 'POST'])
+def admin_spam():
+    """Review accounts that look like bot signups and delete the ones you
+    pick. Deletion only ever touches accounts that are still inactive."""
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    db = get_db()
+    if request.method == 'POST':
+        picked = {int(i) for i in request.form.getlist('user_id') if i.isdigit()}
+        # Re-check on the server: anything that's been used since the page
+        # loaded (or isn't inactive at all) is skipped, never deleted.
+        doomed = [a for a in inactive_accounts(db) if a['id'] in picked]
+        for a in doomed:
+            delete_account_data(db, a, [])
+        db.commit()
+        skipped = len(picked) - len(doomed)
+        flash(f"Deleted {len(doomed)} spam account{'' if len(doomed) == 1 else 's'}."
+              + (f" Skipped {skipped} that {'is' if skipped == 1 else 'are'} no longer inactive." if skipped else ''))
+        db.close()
+        return redirect(url_for('admin_spam'))
+    suspects = review_spam(inactive_accounts(db))
+    db.close()
+    return render_template('admin_spam.html', user=user, suspects=suspects, labels=SIGNAL_LABELS)
+
+@app.route('/admin/accuracy')
+def admin_accuracy():
+    """How often coaches agree with TennisAC: overall, per metric (worst
+    first, so it shows what to fix next), per scoring version and month."""
+    user = get_current_user()
+    if not user or user['email'] != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    db = get_db()
+    rows = db.execute(
+        '''SELECT r.*, a.shot_type, a.overall_score AS app_score, a.scoring_version AS version,
+                  TO_CHAR(a.created_at, 'YYYY-MM') AS month,
+                  c.name AS coach_name, p.name AS player_name
+           FROM coach_reviews r JOIN analysis_history a ON a.id = r.analysis_id
+           JOIN users c ON c.id = r.coach_id JOIN users p ON p.id = a.user_id
+           ORDER BY r.updated_at DESC''').fetchall()
+    db.close()
+    reviews = [dict(r, metrics=json.loads(r['metrics_json'] or '{}'), overall=r['overall_verdict']) for r in rows]
+    for r in reviews:
+        r['agreement'] = agreement(r['metrics'].values())
+    return render_template('admin_accuracy.html', user=user, summary=summarize(reviews),
+                           recent=reviews[:30], overall_verdicts=OVERALL_VERDICTS,
+                           verdict_labels=VERDICT_LABELS)
 
 # Admin stats: what can be picked as the range, in days (None = all time).
 STATS_RANGES = {'7d': 7, '30d': 30, '90d': 90, '12m': 365, 'all': None}

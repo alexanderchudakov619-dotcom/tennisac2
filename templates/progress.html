@@ -76,6 +76,12 @@
     .pp-sum{display:block;color:var(--ink);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pp-go{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
 
+    .review-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);font-size:12.5px;color:var(--muted)}
+    .review-line b{color:var(--good)}
+    .review-btn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#fff;background:var(--ink);border-radius:999px;padding:7px 12px}
+    .review-btn.done{background:none;color:var(--accent);border:1.5px solid var(--border);padding:5.5px 11px}
+    .flash{background:var(--good-bg);color:var(--good);border-radius:12px;padding:12px 14px;font-size:14px;margin:0 0 18px}
+
     .empty-card{padding:44px;text-align:center}
     .empty-card h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;margin:0 0 10px}
   </style>
@@ -117,6 +123,7 @@
 </section>
 
 <section class="metrics-section">
+    {% for m in get_flashed_messages() %}<p class="flash">{{ m }}</p>{% endfor %}
     {% if history %}
         <div class="progress-grid">
             {% for item in history %}
@@ -164,6 +171,18 @@
                         </div>
                     {% else %}
                         <p class="breakdown-empty">No saved metric breakdown for this session.</p>
+                    {% endif %}
+
+                    {% set mine = item.reviews | selectattr('coach_id', 'equalto', user.id) | first %}
+                    {% if player.id != user.id %}
+                    <div class="review-line">
+                        <span>{% if mine %}You checked this{% if mine.agreement is not none %} · agreed with <b>{{ mine.agreement }}%</b>{% endif %}{% else %}Was TennisAC right?{% endif %}</span>
+                        <a class="review-btn{{ ' done' if mine }}" href="{{ url_for('review_analysis', analysis_id=item.id, next=request.path) }}">{{ 'Edit review' if mine else 'Check this analysis' }}</a>
+                    </div>
+                    {% elif item.reviews %}{% set r = item.reviews[-1] %}
+                    <div class="review-line">
+                        <span>Checked by {{ r.coach_name.split()[0] }}{% if r.agreement is not none %} · agreed with <b>{{ r.agreement }}%</b> of scores{% endif %}</span>
+                    </div>
                     {% endif %}
                 </div>
             {% endfor %}

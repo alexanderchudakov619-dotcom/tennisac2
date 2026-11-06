@@ -6,7 +6,7 @@
   .admin-tabs a[aria-current="page"]{background:var(--accent);color:#fff}
 </style>
 <nav class="admin-tabs" aria-label="Admin pages">
-  {% for endpoint, name in (('admin_users', 'Users'), ('admin_stats', 'Stats'), ('admin_coaches', 'Pro Coaches')) %}
+  {% for endpoint, name in (('admin_users', 'Users'), ('admin_stats', 'Stats'), ('admin_accuracy', 'Accuracy'), ('admin_spam', 'Spam'), ('admin_coaches', 'Pro Coaches')) %}
   <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ name }}</a>
   {% endfor %}
 </nav>

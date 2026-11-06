@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TennisAC — Spam review</title>
+  {% include '_icons.html' %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,800;0,900;1,800;1,900&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .wrap{max-width:900px;margin:0 auto;padding:0 clamp(16px,5vw,48px)}
+    .results-hero{text-align:center;padding:56px 0 26px}
+    .results-hero .eyebrow{justify-content:center}
+    .results-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7.5vw,76px);letter-spacing:-.02em;line-height:.92;margin:0 0 12px}
+    .hero-desc{color:var(--muted);font-size:15.5px;max-width:560px;margin:0 auto;line-height:1.6}
+    .msg{border-radius:12px;padding:12px 14px;font-size:14px;margin:0 0 18px;background:var(--good-bg);color:var(--good)}
+
+    .group{background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px clamp(16px,4vw,26px);box-shadow:0 16px 36px -24px rgba(120,50,0,.3);margin-bottom:18px}
+    .group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+    .group-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;margin:0}
+    .group-sub{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 12px}
+    .pick-all{font:inherit;font-size:13px;font-weight:600;color:var(--accent-deep);background:none;border:1px solid var(--border-soft);border-radius:999px;padding:6px 12px;cursor:pointer}
+    .row{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--border-soft);cursor:pointer}
+    .row:first-of-type{border-top:none}
+    .row input{margin-top:3px;width:16px;height:16px;accent-color:var(--bad);flex-shrink:0}
+    .who{min-width:0;flex:1}
+    .who-name{font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+    .who-meta{color:var(--muted-3);font-size:12.5px;overflow-wrap:anywhere}
+    .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+    .chip{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--bad-bg);color:var(--bad)}
+    .chip.quiet{background:var(--border-soft);color:var(--muted)}
+    .empty{color:var(--muted);font-size:14.5px;line-height:1.6;text-align:center;padding:10px 0}
+
+    .bar{position:sticky;bottom:calc(16px + env(safe-area-inset-bottom, 0px));display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:var(--ink);color:#fff;border-radius:16px;padding:12px 14px 12px 18px;margin:8px 0 60px;box-shadow:0 14px 34px -12px rgba(0,0,0,.45)}
+    .bar span{font-size:14px}
+    .bar button{font:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--bad);border:0;border-radius:999px;padding:10px 18px;cursor:pointer}
+    .bar button:disabled{opacity:.45;cursor:default}
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+    <div>
+        <a href="/" class="nav-logo">Tennis<span>AC</span></a>
+        <div class="nav-sub">Admin</div>
+    </div>
+    <div class="nav-right">
+        <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
+    </div>
+</nav>
+
+<section class="results-hero">
+    <div class="wrap">
+        <p class="eyebrow">Admin Only</p>
+        <h1 class="results-title">Spam review</h1>
+        <p class="hero-desc">Accounts that never did anything: no analyses, no Point Play, no profile, no team. Tick the ones that are bots and delete them. Accounts that get used are never listed here.</p>
+        {% include '_admin_tabs.html' %}
+    </div>
+</section>
+
+<main class="wrap">
+    {% for m in get_flashed_messages() %}<p class="msg">{{ m }}</p>{% endfor %}
+
+    {% set strong = suspects | selectattr('strong') | list %}
+    {% set quiet = suspects | rejectattr('strong') | list %}
+
+    {% if not suspects %}
+    <div class="group"><p class="empty">No suspected spam accounts. Every account has used TennisAC at least once.</p></div>
+    {% else %}
+    <form method="POST" id="spamForm">
+        {% if strong %}
+        <section class="group">
+            <div class="group-head">
+                <h2 class="group-title">Very likely bots ({{ strong | length }})</h2>
+                <button type="button" class="pick-all" data-group="strong">Select all</button>
+            </div>
+            <p class="group-sub">Never used, plus at least one bot sign.</p>
+            {% for a in strong %}
+            <label class="row">
+                <input type="checkbox" name="user_id" value="{{ a.id }}" data-group="strong">
+                <span class="who">
+                    <span class="who-name">{{ a.name }}</span><br>
+                    <span class="who-meta">{{ a.email }} · joined {{ a.created_at | nicedate }}</span>
+                    <span class="chips">{% for s in a.signals %}<span class="chip">{{ labels[s] }}</span>{% endfor %}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        {% if quiet %}
+        <section class="group">
+            <div class="group-head">
+                <h2 class="group-title">Never used ({{ quiet | length }})</h2>
+                <button type="button" class="pick-all" data-group="quiet">Select all</button>
+            </div>
+            <p class="group-sub">No clear bot signs, just no activity. Some may be real people who signed up and haven't uploaded a video yet, so check these one by one.</p>
+            {% for a in quiet %}
+            <label class="row">
+                <input type="checkbox" name="user_id" value="{{ a.id }}" data-group="quiet">
+                <span class="who">
+                    <span class="who-name">{{ a.name }}</span><br>
+                    <span class="who-meta">{{ a.email }} · joined {{ a.created_at | nicedate }}</span>
+                    <span class="chips"><span class="chip quiet">Never used</span>{% for x in a.signals %}<span class="chip quiet">{{ labels[x] }}</span>{% endfor %}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <div class="bar">
+            <span id="pickedText">Nothing selected</span>
+            <button type="submit" id="deleteBtn" disabled>Delete selected</button>
+        </div>
+    </form>
+    {% endif %}
+</main>
+
+<footer class="site-footer">
+    <div class="foot-logo">Tennis<span>AC</span></div>
+    <p>© 2026 TennisAC — Built for players who want to get better.</p>
+</footer>
+
+<script src="{{ url_for('static', filename='js/site.js') }}"></script>
+<script>
+(() => {
+  const form = document.getElementById('spamForm');
+  if (!form) return;
+  const boxes = [...form.querySelectorAll('input[name="user_id"]')];
+  const btn = document.getElementById('deleteBtn'), text = document.getElementById('pickedText');
+  let armed = false;
+  const update = () => {
+    const n = boxes.filter(b => b.checked).length;
+    armed = false;
+    btn.disabled = n === 0;
+    btn.textContent = 'Delete selected';
+    text.textContent = n ? `${n} account${n === 1 ? '' : 's'} selected` : 'Nothing selected';
+  };
+  boxes.forEach(b => b.addEventListener('change', update));
+  form.querySelectorAll('.pick-all').forEach(p => p.addEventListener('click', () => {
+    const group = boxes.filter(b => b.dataset.group === p.dataset.group);
+    const all = group.every(b => b.checked);
+    group.forEach(b => { b.checked = !all; });
+    p.textContent = all ? 'Select all' : 'Clear';
+    update();
+  }));
+  // Two clicks to delete: the first one asks, the second one does it.
+  form.addEventListener('submit', (e) => {
+    if (armed) return;
+    e.preventDefault();
+    const n = boxes.filter(b => b.checked).length;
+    armed = true;
+    btn.textContent = `Click again to delete ${n} for good`;
+  });
+})();
+</script>
+</body>
+</html>

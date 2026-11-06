@@ -4,6 +4,11 @@ Converts raw metrics from video_processor into human-readable scores and feedbac
 Each shot type has its own set of rules.
 """
 
+# Saved with every analysis. Bump it whenever the scoring rules change, so
+# the admin Accuracy page can show whether coaches agree with the new rules
+# more than the old ones.
+SCORING_VERSION = "2026.11"
+
 
 # ── Scoring helpers ──────────────────────────────────────────────────────────
 
