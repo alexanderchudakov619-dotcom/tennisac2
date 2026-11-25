@@ -1055,7 +1055,7 @@ def analyze():
     # How long each step took, in Render's logs, to see what makes people wait.
     print(f"[TennisAC] /analyze timing: shot={shot_type} upload={timing['upload_mb']}MB "
           f"pose={timing['pose']}s ball={timing.get('ball', 0)}s fence={fence_view} "
-          f"total={round(time.time() - started, 1)}s error={metrics.get('error')}")
+          f"total={round(time.time() - started, 1)}s error={metrics.get('error')}", flush=True)
     if metrics.get('error'):
         flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
         return redirect(url_for('index') + '#analyze')
