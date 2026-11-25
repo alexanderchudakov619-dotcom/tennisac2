@@ -48,6 +48,21 @@
       <form action="{% if edit %}/profile/edit{% else %}/profile/setup{% endif %}" method="POST">
 
         <div class="field-group">
+          <label class="field-label">Which hand do you hit with?</label>
+          <p class="field-hint">TennisAC uses this to know which arm swings the racquet. Without it, it has to guess, and a wrong guess throws off your scores.</p>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="dominant_hand" value="Right" required {% if user.dominant_hand == 'Right' %}checked{% endif %} />
+              <span>Right</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="dominant_hand" value="Left" {% if user.dominant_hand == 'Left' %}checked{% endif %} />
+              <span>Left</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
           <label class="field-label">Who do you want to play like?</label>
           <input type="text" name="play_like" class="input" placeholder="e.g. Alcaraz, Djokovic, Sinner..." value="{{ user.play_like or '' }}" />
         </div>
@@ -103,20 +118,6 @@
         <div class="field-group">
           <label class="field-label">What racquet do you use?</label>
           <input type="text" name="racquet" class="input" placeholder="e.g. Wilson Pro Staff 97, Babolat Pure Drive..." value="{{ user.racquet or '' }}" />
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Dominant hand</label>
-          <div class="radio-group">
-            <label class="radio-opt">
-              <input type="radio" name="dominant_hand" value="Right" {% if user.dominant_hand == 'Right' %}checked{% endif %} />
-              <span>Right</span>
-            </label>
-            <label class="radio-opt">
-              <input type="radio" name="dominant_hand" value="Left" {% if user.dominant_hand == 'Left' %}checked{% endif %} />
-              <span>Left</span>
-            </label>
-          </div>
         </div>
 
         <div class="field-group">

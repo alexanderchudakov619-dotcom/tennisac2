@@ -942,6 +942,9 @@ def logout():
 def save_profile(user_id):
     """Saves the profile form (setup and edit share it)."""
     shot_order = ", ".join(f"{i}. {request.form.get(f'shot{i}', '')}" for i in range(1, 7))
+    hand = request.form.get('dominant_hand')
+    if hand not in ('Right', 'Left'):
+        hand = None  # unknown: the analysis guesses from which wrist moves fastest
     coach_style = request.form.get('coach_style')
     if coach_style not in COACHING_STYLES:
         coach_style = None  # the default, balanced coach
@@ -951,7 +954,7 @@ def save_profile(user_id):
                   point_length=%s, shot_order=%s, coach_style=%s WHERE id=%s''',
                (request.form.get('play_like'), request.form.get('utr'),
                 request.form.get('player_type'), request.form.get('tactical_pref'),
-                request.form.get('racquet'), request.form.get('dominant_hand'),
+                request.form.get('racquet'), hand,
                 request.form.get('backhand_style'), request.form.get('best_shot'),
                 request.form.get('point_length'), shot_order, coach_style, user_id))
     db.commit()
