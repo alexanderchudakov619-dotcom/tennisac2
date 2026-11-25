@@ -6,6 +6,8 @@ import hashlib
 import json
 import traceback
 import threading
+import fcntl
+import tempfile
 import time
 import urllib.request
 import urllib.error
@@ -389,11 +391,35 @@ def allowed_file(filename):
 # Render's instance has 512 MB, and one analysis peaks around 275 MB, so
 # running them one at a time is what keeps several simultaneous uploads from
 # crashing the server for everyone. Others wait their turn (they're quick).
-_analysis_slot = threading.BoundedSemaphore(1)
+# It's a lock file rather than a threading lock because gunicorn runs
+# several worker processes, and a threading lock only covers one of them.
+ANALYSIS_LOCK_PATH = os.path.join(tempfile.gettempdir(), 'tennisac-analysis.lock')
 ANALYSIS_WAIT_SEC = 150
 
 class ServerBusy(Exception):
     pass
+
+@contextmanager
+def analysis_turn(timeout=ANALYSIS_WAIT_SEC):
+    """Waits (up to timeout seconds) for the one analysis slot shared by
+    every worker process, and holds it while the caller works."""
+    fd = os.open(ANALYSIS_LOCK_PATH, os.O_CREAT | os.O_RDWR)
+    try:
+        deadline = time.time() + timeout
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() > deadline:
+                    raise ServerBusy()
+                time.sleep(0.25)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 @contextmanager
 def uploaded_video(file):
@@ -403,12 +429,8 @@ def uploaded_video(file):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{uuid.uuid4().hex}.{ext}")
     file.save(filepath)
     try:
-        if not _analysis_slot.acquire(timeout=ANALYSIS_WAIT_SEC):
-            raise ServerBusy()
-        try:
+        with analysis_turn():
             yield filepath
-        finally:
-            _analysis_slot.release()
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -1012,8 +1034,12 @@ def analyze():
         return redirect(url_for('index'))
 
     ball_physics, fence_view = None, False
+    started = time.time()
+    timing = {}
     with uploaded_video(file) as filepath:
+        timing['upload_mb'] = round(os.path.getsize(filepath) / 1e6, 1)
         metrics = process_video(filepath, shot_type, dominant_hand=user['dominant_hand'])
+        timing['pose'] = round(time.time() - started, 1)
         # Filmed from the fence with the whole court in view? Then the ball
         # can be measured too — speed, spin, depth, net clearance — same as
         # Point Play. Otherwise skip it rather than show shaky numbers.
@@ -1025,6 +1051,11 @@ def analyze():
             except Exception:
                 print("[TennisAC] Ball physics failed on /analyze:\n" + traceback.format_exc())
                 ball_physics = None
+            timing['ball'] = round(time.time() - started - timing['pose'], 1)
+    # How long each step took, in Render's logs, to see what makes people wait.
+    print(f"[TennisAC] /analyze timing: shot={shot_type} upload={timing['upload_mb']}MB "
+          f"pose={timing['pose']}s ball={timing.get('ball', 0)}s fence={fence_view} "
+          f"total={round(time.time() - started, 1)}s error={metrics.get('error')}")
     if metrics.get('error'):
         flash(metrics.get('error_message', UNREADABLE_VIDEO_MSG))
         return redirect(url_for('index') + '#analyze')

@@ -117,6 +117,11 @@
     .analyse-head-left .big-num{font-size:clamp(56px,7vw,88px)}
     .analyse-head-left h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(26px,3.6vw,46px);color:var(--ink);margin:0;letter-spacing:-.02em}
     .analyse-hint{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-3)}
+    .analyse-status{margin-top:22px;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:20px 22px;box-shadow:0 2px 16px rgba(0,0,0,.05)}
+    .as-step{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;color:var(--ink);margin:0 0 12px}
+    .as-bar{height:8px;background:rgba(255,80,0,.1);border-radius:99px;overflow:hidden}
+    .as-fill{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .4s ease}
+    .as-sub{font-size:13.5px;color:var(--muted);margin:10px 0 0;line-height:1.5}
     .select-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-3);margin-bottom:16px}
 
     .shot-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:30px}
@@ -390,6 +395,11 @@
           <span id="btnText">Analyse My Shot →</span>
           <span id="btnLoader" class="hidden">Analysing…</span>
         </button>
+        <div class="analyse-status" id="analyseStatus" role="status" aria-live="polite" hidden>
+          <p class="as-step" id="asStep">Uploading your video…</p>
+          <div class="as-bar"><div class="as-fill" id="asFill"></div></div>
+          <p class="as-sub" id="asSub">Keep this page open.</p>
+        </div>
       </div>
     </form>
   </section>
